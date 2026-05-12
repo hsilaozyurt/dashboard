@@ -1,12 +1,13 @@
 /* ================================================================
    data.js — CSV parser, data processing, risk calculations
-   Revised version:
-   - Safer CSV parser
-   - Handles comma / semicolon separated files
+   Final revised version:
+   - Supports comma and semicolon separated CSV files
    - Handles duplicate headers
    - Prevents description text from becoming station code
-   - Reads Loc column correctly from All_Station_Info.csv
-   - More flexible flight count mapping
+   - Uses Loc as main station code
+   - Uses only Loc + flight count from Ucus_sayilari.csv
+   - Uses only SPI + Title + SPI_Class from SPI_kategorileri.csv
+   - Handles broken Turkish encoding headers with index fallback
    ================================================================ */
 
 var SRD = SRD || {};
@@ -45,7 +46,6 @@ SRD.DATA = (function () {
     }
 
     cols.push(cur.trim());
-
     return cols;
   }
 
@@ -57,6 +57,7 @@ SRD.DATA = (function () {
 
   function makeUniqueHeaders(headers) {
     var seen = {};
+
     return headers.map(function (h) {
       h = normalizeHeaderName(h);
 
@@ -86,7 +87,6 @@ SRD.DATA = (function () {
     if (lines.length < 2) return [];
 
     var delimiter = detectDelimiter(lines[0]);
-
     var headers = makeUniqueHeaders(splitCSVLine(lines[0], delimiter));
 
     return lines.slice(1).map(function (line) {
@@ -132,6 +132,15 @@ SRD.DATA = (function () {
     return '';
   }
 
+  function getByIndex(row, index) {
+    var keys = Object.keys(row || {});
+    var key = keys[index];
+
+    if (!key) return '';
+
+    return String(row[key] || '').trim();
+  }
+
   function normalizeText(value) {
     return String(value || '').trim();
   }
@@ -172,17 +181,17 @@ SRD.DATA = (function () {
     raw = raw.toUpperCase();
 
     /*
-      Eğer alan uzun açıklama gibi geldiyse istasyon kodu olarak kullanma.
+      Uzun açıklama istasyon kodu olamaz.
       Örnek: "AFTER PARKING 32 POSITION..."
     */
     if (raw.length > 8) return '';
 
-    /*
-      Sadece istasyon kodu gibi duran değerleri kabul et.
-      ACC, ADB, IST, SAW, 3E gibi kısa kodlar olabilir.
-    */
     raw = raw.replace(/[^A-Z0-9]/g, '');
 
+    /*
+      ACC, ADB, IST, SAW gibi kodlar.
+      Bazı istasyon kodları 2-5 karakter olabilir.
+    */
     if (raw.length < 2 || raw.length > 5) return '';
 
     return raw;
@@ -190,11 +199,8 @@ SRD.DATA = (function () {
 
   function getIncidentLoc(row) {
     /*
-      Senin All_Station_Info.csv header'ına göre ana kolon:
-      Loc
-
-      Location da var ama bazı dosyalarda metinsel lokasyon/yer adı olabilir.
-      Bu yüzden Loc en önde.
+      All_Station_Info.csv için doğru ana kolon: Loc
+      Location uzun lokasyon/açıklama olabilir, bu yüzden en sonda.
     */
     return (
       cleanStationCode(pick(row, ['Loc', 'LOC', 'loc'])) ||
@@ -206,6 +212,11 @@ SRD.DATA = (function () {
   }
 
   function getFlightLoc(row) {
+    /*
+      Ucus_sayilari.csv:
+      0. kolon Loc.
+      Header encoding bozulursa index fallback kullanılır.
+    */
     return (
       cleanStationCode(pick(row, [
         'Loc',
@@ -224,12 +235,20 @@ SRD.DATA = (function () {
         'Airport',
         'Airport Code',
         'Airport_Code'
-      ]))
+      ])) ||
+      cleanStationCode(getByIndex(row, 0))
     );
   }
 
   function getFlightCount(row) {
-    return parseNumber(pick(row, [
+    /*
+      Ucus_sayilari.csv:
+      0. kolon Loc
+      1. kolon Uçuş Sayısı
+
+      Diğer risk skoru kolonları burada kullanılmıyor.
+    */
+    var val = pick(row, [
       'Uçuş Sayısı',
       'Ucus Sayisi',
       'Ucus_sayisi',
@@ -246,8 +265,27 @@ SRD.DATA = (function () {
       'count',
       'Sayı',
       'Sayi',
-      'Adet'
-    ]));
+      'Adet',
+
+      /*
+        Bozuk encoding başlıkları:
+        Loc;U�u? Say?s?;...
+      */
+      'U�u? Say?s?',
+      'U?u? Say?s?',
+      'Uçu? Say?s?',
+      'U�uş Sayısı',
+      'UÃ§uÅŸ SayÄ±sÄ±'
+    ]);
+
+    /*
+      Header bozuksa 2. kolondan direkt al.
+    */
+    if (!val) {
+      val = getByIndex(row, 1);
+    }
+
+    return parseNumber(val);
   }
 
   /* ── RISK MATRIX ─────────────────────────────────────────────── */
@@ -321,6 +359,10 @@ SRD.DATA = (function () {
 
       if (!loc) return;
 
+      /*
+        Sadece Loc + uçuş sayısı kullanıyoruz.
+        Diğer risk kolonlarını almıyoruz.
+      */
       flightMap[loc] = (flightMap[loc] || 0) + cnt;
     });
 
@@ -329,35 +371,49 @@ SRD.DATA = (function () {
     var spiMap = {};
 
     spiRows.forEach(function (r) {
-      var code = normalizeText(pick(r, [
-        'SPI',
-        'SPI_Code',
-        'SPI Code',
-        'Code',
-        'code'
-      ]));
+      /*
+        SPI CSV:
+        0: SPI
+        1: SPI Sayısı
+        2: Title
+        3: SPI_Class
+
+        SPI Sayısı kullanılmıyor.
+      */
+      var code = normalizeText(
+        pick(r, [
+          'SPI',
+          'SPI_Code',
+          'SPI Code',
+          'Code',
+          'code'
+        ]) || getByIndex(r, 0)
+      );
 
       if (!code) return;
 
-      spiMap[code] = {
-        title: pick(r, [
-          'title',
-          'Title',
-          'SPI_Title',
-          'SPI Title',
-          'Açıklama',
-          'Aciklama',
-          'Description'
-        ]) || code,
+      var title = pick(r, [
+        'title',
+        'Title',
+        'SPI_Title',
+        'SPI Title',
+        'Açıklama',
+        'Aciklama',
+        'Description'
+      ]) || getByIndex(r, 2) || code;
 
-        cls: pick(r, [
-          'SPI_Class',
-          'SPI Class',
-          'Class',
-          'class',
-          'Sınıf',
-          'Sinif'
-        ]) || ''
+      var cls = pick(r, [
+        'SPI_Class',
+        'SPI Class',
+        'Class',
+        'class',
+        'Sınıf',
+        'Sinif'
+      ]) || getByIndex(r, 3) || '';
+
+      spiMap[code] = {
+        title: title,
+        cls: cls
       };
     });
 
@@ -374,9 +430,6 @@ SRD.DATA = (function () {
         'risk_score'
       ]));
 
-      /*
-        Eğer RiskScore boşsa likelihoodScore × severityScore üzerinden hesapla.
-      */
       var likelihoodScore = parseNumber(pick(r, [
         'likelihoodScore',
         'LikelihoodScore',
@@ -506,9 +559,11 @@ SRD.DATA = (function () {
       var flights = flightMap[st.loc] || 0;
 
       /*
-        Uçuş sayısı yoksa composite'i ortalama risk olarak gösteriyoruz.
-        Uçuş sayısı varsa gerçek normalize skor:
-        (Σ RiskScore / Flights) × 100
+        Uçuş sayısı varsa:
+        Composite = (Σ RiskScore / Flights) × 100
+
+        Uçuş sayısı yoksa:
+        fallback olarak ortalama risk gösterilir.
       */
       var composite = flights > 0
         ? (totalRisk / flights * 100)
@@ -550,6 +605,8 @@ SRD.DATA = (function () {
     console.log('[SRD DATA] stations:', stations.length);
     console.log('[SRD DATA] flight rows:', flightRows.length);
     console.log('[SRD DATA] flightMap:', flightMap);
+    console.log('[SRD DATA] spi rows:', spiRows.length);
+    console.log('[SRD DATA] spiMap:', spiMap);
 
     return {
       rows: rows,
