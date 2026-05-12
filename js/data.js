@@ -23,6 +23,10 @@
    - Station           -> Location
    - Flight count      -> Uçuş Sayısı
 
+   Station normalized risk:
+   - Normalized Risk = (Σ RiskScore / Flights) × 10,000
+   - If Flights = 0, Normalized Risk = 0
+
    Important:
    - Fake/empty Loc records are NOT deleted.
    - Fake/empty Loc records are included in KPIs, filters, SPI, trend.
@@ -471,6 +475,20 @@ SRD.DATA = (function () {
     return 'ABCDE'.indexOf(first) >= 0 ? first : null;
   }
 
+  function calcNormalizedRisk(totalRisk, flights) {
+    /*
+      Normalized Risk = risk exposure per 10,000 flights.
+      If flight count is missing, score is 0 so that stations
+      with no flight data do not appear as artificially high-risk.
+    */
+    totalRisk = Number(totalRisk || 0);
+    flights = Number(flights || 0);
+
+    if (flights <= 0) return 0;
+
+    return (totalRisk / flights) * 10000;
+  }
+
   /* ── FORMAT ─────────────────────────────────────────────────── */
 
   function fmtNum(n, dec) {
@@ -660,9 +678,12 @@ SRD.DATA = (function () {
 
       var flights = flightMap[st.loc] || 0;
 
-      var composite = flights > 0
-        ? totalRisk / flights * 100
-        : (incs.length ? totalRisk / incs.length : 0);
+      /*
+        New station risk logic:
+        Normalized Risk = (Σ RiskScore / Flights) × 10,000
+        If flights = 0, score = 0.
+      */
+      var composite = calcNormalizedRisk(totalRisk, flights);
 
       var catCounts = {
         A: 0,
@@ -686,6 +707,7 @@ SRD.DATA = (function () {
         totalRisk: totalRisk,
         flights: flights,
         composite: composite,
+        normalizedRisk: composite,
         compLevel: getRiskCat(composite),
         catCounts: catCounts,
         highSev: (catCounts.A || 0) + (catCounts.B || 0)
@@ -787,9 +809,12 @@ SRD.DATA = (function () {
 
       var flights = origSt ? Number(origSt.flights || 0) : 0;
 
-      var composite = flights > 0
-        ? totalRisk / flights * 100
-        : (incs.length ? totalRisk / incs.length : 0);
+      /*
+        New filtered station risk logic:
+        Normalized Risk = (Σ RiskScore / Flights) × 10,000
+        If flights = 0, score = 0.
+      */
+      var composite = calcNormalizedRisk(totalRisk, flights);
 
       var catCounts = {
         A: 0,
@@ -813,6 +838,7 @@ SRD.DATA = (function () {
         totalRisk: totalRisk,
         flights: flights,
         composite: composite,
+        normalizedRisk: composite,
         compLevel: getRiskCat(composite),
         catCounts: catCounts,
         highSev: (catCounts.A || 0) + (catCounts.B || 0)
