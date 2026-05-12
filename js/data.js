@@ -24,8 +24,10 @@
    - Flight count      -> Uçuş Sayısı
 
    Station normalized risk:
-   - Normalized Risk = (Σ RiskScore / Flights) × 10,000
-   - If Flights = 0, Normalized Risk = 0
+   - Active flight year = 2025
+   - Minimum event count for ranking = 5
+   - Normalized Risk = (Σ RiskScore / 2025 Flights) × 10,000
+   - If 2025 Flights = 0 or event count < 5, Normalized Risk = 0
 
    Station aliases:
    - TXF, BER and SXF are treated as the same station.
@@ -276,6 +278,9 @@ SRD.DATA = (function () {
 
   /* ── STATION / LOC ──────────────────────────────────────────── */
 
+  var ACTIVE_FLIGHT_YEAR = '2025';
+  var MIN_EVENTS_FOR_RANKING = 5;
+
   var STATION_ALIASES = {
     TXF: 'SXF',
     BER: 'SXF'
@@ -382,6 +387,39 @@ SRD.DATA = (function () {
     ]) || byIndex(row, 2);
 
     return parseFlightCount(v);
+  }
+
+  function getFlightYear(row) {
+    /*
+      Flight Excel:
+      Ay Yıl kolonundan yıl okunur.
+      Desteklenen örnekler:
+      - 01.2025
+      - 2025-01
+      - 2025.01
+      - 01/2025
+      - Date object
+    */
+    var raw = pick(row, [
+      'Ay Yıl',
+      'Ay Yil',
+      'AyYıl',
+      'AyYil',
+      'Ay_Yıl',
+      'Ay_Yil',
+      'Month Year',
+      'MonthYear',
+      'Year Month',
+      'YearMonth',
+      'Date'
+    ]) || byIndex(row, 0);
+
+    if (!raw) return '';
+
+    var text = str(raw);
+
+    var match = text.match(/(20[0-9]{2})/);
+    return match ? match[1] : '';
   }
 
   /* ── OCCURRENCE ─────────────────────────────────────────────── */
@@ -589,15 +627,27 @@ SRD.DATA = (function () {
     flightRows = flightRows || [];
     spiRows    = spiRows    || [];
 
-    /* Flight map */
+    /* Flight maps */
     var flightMap = {};
+    var activeFlightMap = {};
 
     flightRows.forEach(function (row) {
       var loc = getFlightLoc(row);
       var cnt = getFlightCount(row);
+      var year = getFlightYear(row);
 
       if (loc && cnt > 0) {
+        /*
+          Tüm uçuşlar: referans / debug için tutulur.
+        */
         flightMap[loc] = (flightMap[loc] || 0) + cnt;
+
+        /*
+          Risk sıralaması için sadece aktif yıl uçuşları kullanılır.
+        */
+        if (year === ACTIVE_FLIGHT_YEAR) {
+          activeFlightMap[loc] = (activeFlightMap[loc] || 0) + cnt;
+        }
       }
     });
 
@@ -754,9 +804,17 @@ SRD.DATA = (function () {
         return acc + Number(inc.riskScore || 0);
       }, 0);
 
-      var flights = flightMap[st.loc] || 0;
+      var eventCount = countUnique(incs);
+      var totalFlights = flightMap[st.loc] || 0;
+      var activeFlights = activeFlightMap[st.loc] || 0;
 
-      var composite = calcNormalizedRisk(totalRisk, flights);
+      var isRankable =
+        activeFlights > 0 &&
+        eventCount >= MIN_EVENTS_FOR_RANKING;
+
+      var composite = isRankable
+        ? calcNormalizedRisk(totalRisk, activeFlights)
+        : 0;
 
       var catCounts = {
         A: 0,
@@ -775,12 +833,29 @@ SRD.DATA = (function () {
       return {
         loc: st.loc,
         incidents: incs,
-        count: countUnique(incs),
+        count: eventCount,
         rowCount: incs.length,
+
         totalRisk: totalRisk,
-        flights: flights,
+
+        /*
+          flights alanı dashboard/station-detail içinde gösterilen ana uçuş alanı.
+          Artık 2025 uçuşlarını gösterir.
+        */
+        flights: activeFlights,
+
+        /*
+          Tüm dönem uçuşları referans için tutulur.
+        */
+        totalFlightsAllYears: totalFlights,
+        activeFlights: activeFlights,
+        activeFlightYear: ACTIVE_FLIGHT_YEAR,
+
         composite: composite,
         normalizedRisk: composite,
+        isRankable: isRankable,
+        minEventsForRanking: MIN_EVENTS_FOR_RANKING,
+
         compLevel: getRiskCat(composite),
         catCounts: catCounts,
         highSev: (catCounts.A || 0) + (catCounts.B || 0)
@@ -797,15 +872,22 @@ SRD.DATA = (function () {
       '| unique:', countUnique(rows),
       '| stationRows:', stations.reduce(function (acc, s) { return acc + s.rowCount; }, 0),
       '| stations:', stations.length,
-      '| flightLocs:', Object.keys(flightMap).length,
+      '| flightLocsAllYears:', Object.keys(flightMap).length,
+      '| flightLocsActiveYear:', Object.keys(activeFlightMap).length,
+      '| activeYear:', ACTIVE_FLIGHT_YEAR,
+      '| minEvents:', MIN_EVENTS_FOR_RANKING,
       '| spiCodes:', Object.keys(spiMap).length,
-      '| sampleFlights:', flightMap
+      '| sampleFlightsAllYears:', flightMap,
+      '| sampleFlightsActiveYear:', activeFlightMap
     );
 
     return {
       rows: rows,
       stations: stations,
       flightMap: flightMap,
+      activeFlightMap: activeFlightMap,
+      activeFlightYear: ACTIVE_FLIGHT_YEAR,
+      minEventsForRanking: MIN_EVENTS_FOR_RANKING,
       spiMap: spiMap
     };
   }
@@ -819,6 +901,9 @@ SRD.DATA = (function () {
     return {
       totalInc: countUnique(rows),
 
+      /*
+        Toplam uçuş artık risk hesabıyla tutarlı olması için 2025 uçuşlarını toplar.
+      */
       totalFlight: stations.reduce(function (acc, st) {
         return acc + Number(st.flights || 0);
       }, 0),
@@ -881,9 +966,17 @@ SRD.DATA = (function () {
         return x.loc === st.loc;
       });
 
-      var flights = origSt ? Number(origSt.flights || 0) : 0;
+      var eventCount = countUnique(incs);
+      var activeFlights = origSt ? Number(origSt.activeFlights || origSt.flights || 0) : 0;
+      var totalFlights = origSt ? Number(origSt.totalFlightsAllYears || 0) : 0;
 
-      var composite = calcNormalizedRisk(totalRisk, flights);
+      var isRankable =
+        activeFlights > 0 &&
+        eventCount >= MIN_EVENTS_FOR_RANKING;
+
+      var composite = isRankable
+        ? calcNormalizedRisk(totalRisk, activeFlights)
+        : 0;
 
       var catCounts = {
         A: 0,
@@ -902,12 +995,21 @@ SRD.DATA = (function () {
       return {
         loc: st.loc,
         incidents: incs,
-        count: countUnique(incs),
+        count: eventCount,
         rowCount: incs.length,
+
         totalRisk: totalRisk,
-        flights: flights,
+
+        flights: activeFlights,
+        totalFlightsAllYears: totalFlights,
+        activeFlights: activeFlights,
+        activeFlightYear: ACTIVE_FLIGHT_YEAR,
+
         composite: composite,
         normalizedRisk: composite,
+        isRankable: isRankable,
+        minEventsForRanking: MIN_EVENTS_FOR_RANKING,
+
         compLevel: getRiskCat(composite),
         catCounts: catCounts,
         highSev: (catCounts.A || 0) + (catCounts.B || 0)
