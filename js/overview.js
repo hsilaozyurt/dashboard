@@ -1,9 +1,20 @@
 /* ================================================================
    overview.js — Overview page
-   Bilingual version
+   Hero + YouTube opening video version
    ================================================================ */
 
 SRD.OVERVIEW = (function () {
+
+  /*
+    YouTube video linkini buradan değiştireceksin.
+
+    Normal YouTube linki:
+    https://www.youtube.com/watch?v=VIDEO_ID
+
+    Embed linki şöyle olmalı:
+    https://www.youtube.com/embed/VIDEO_ID
+  */
+  var OVERVIEW_VIDEO_URL = 'https://www.youtube.com/embed/VIDEO_ID';
 
   function getT() {
     if (SRD.I18N && typeof SRD.I18N.t === 'function') {
@@ -13,15 +24,9 @@ SRD.OVERVIEW = (function () {
     return function (key) {
       var fallback = {
         overviewHeroTitle: 'Ground Operations Safety Risk Management',
-        overviewHeroText: 'This dashboard monitors safety risk indicators across all ground operation stations. Data is sourced from occurrence reports and analyzed using the Table-6 risk matrix. Use the sidebar to navigate between the Dashboard, All Stations, and upcoming features.',
-        riskMatrix: 'Risk Matrix',
-        riskMatrixText: 'Risk scores are calculated using Table-6: Likelihood Score × Severity Score. Categories range from E (Very Low) to A (Critical).',
-        compositeScore: 'Composite Score',
-        compositeScoreText: 'Station composite score = (Σ RiskScore / Flight Count) × 100. This normalizes risk exposure by operational volume.',
-        dataSources: 'Data Sources',
-        dataSourcesText: 'All_Station_Info.csv contains occurrence reports. Ucus_sayilari.csv provides flight counts per station. SPI_kategorileri.csv maps SPI codes.',
-        moreComing: 'More content coming soon',
-        moreComingText: 'This section will include executive summaries, regulatory updates, and key safety metrics for management review.'
+        overviewHeroText: 'This dashboard monitors safety risk indicators across all ground operation stations and supports data-driven safety follow-up processes.',
+        overviewVideoTitle: 'Ground Operations Safety Vision',
+        overviewVideoText: 'Watch the opening video from our safety summit and explore the dashboard modules through the navigation menu.'
       };
 
       return fallback[key] || key;
@@ -33,85 +38,66 @@ SRD.OVERVIEW = (function () {
 
     var t = getT();
 
-    /*
-      ÖNEMLİ:
-      container.className = 'overview-page' kullanmıyoruz.
-      Çünkü bu, router için gerekli olan "page" ve "srd-active"
-      class'larını silebilir.
-    */
     container.innerHTML = '';
     container.classList.add('overview-page');
 
-    /* Hero */
     var hero = document.createElement('div');
-    hero.className = 'overview-hero';
+    hero.className = 'overview-landing';
 
     hero.innerHTML = [
-      '<div class="overview-hero-icon overview-thy-logo-box">',
-  '<img src="assets/thy-logo.png" alt="Turkish Airlines Logo" class="overview-thy-logo-img">',
-       '</div>',
-
-      '<div>',
-        '<div class="overview-hero-title">',
-          t('overviewHeroTitle'),
+      '<div class="overview-left">',
+        '<div class="overview-logo-row">',
+          '<div class="overview-hero-icon overview-thy-logo-box">',
+            '<img src="assets/thy-logo.png" alt="Turkish Airlines Logo" class="overview-thy-logo-img">',
+          '</div>',
+          '<div>',
+            '<div class="overview-kicker">GROUND OPERATIONS</div>',
+            '<div class="overview-hero-title">' + escapeHTML(t('overviewHeroTitle')) + '</div>',
+          '</div>',
         '</div>',
 
         '<div class="overview-hero-sub">',
-          t('overviewHeroText'),
+          escapeHTML(t('overviewHeroText')),
+        '</div>',
+
+        '<div class="overview-actions">',
+          '<button class="overview-primary-btn" type="button" onclick="SRD.ROUTER.go(\'dashboard\')">',
+            'Dashboard',
+          '</button>',
+          '<button class="overview-secondary-btn" type="button" onclick="SRD.ROUTER.go(\'stations\')">',
+            'All Stations',
+          '</button>',
+        '</div>',
+      '</div>',
+
+      '<div class="overview-video-card">',
+        '<div class="overview-video-header">',
+          '<div>',
+            '<div class="overview-video-title">' + escapeHTML(t('overviewVideoTitle')) + '</div>',
+            '<div class="overview-video-sub">' + escapeHTML(t('overviewVideoText')) + '</div>',
+          '</div>',
+        '</div>',
+
+        '<div class="overview-video-wrap">',
+          '<iframe ',
+            'src="' + escapeHTML(OVERVIEW_VIDEO_URL) + '" ',
+            'title="Ground Operations Safety Video" ',
+            'frameborder="0" ',
+            'allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" ',
+            'allowfullscreen>',
+          '</iframe>',
         '</div>',
       '</div>'
     ].join('');
 
-    /* Info cards */
-    var cards = document.createElement('div');
-    cards.className = 'overview-cards';
-
-    [
-      {
-        title: t('riskMatrix'),
-        text: t('riskMatrixText')
-      },
-      {
-        title: t('compositeScore'),
-        text: t('compositeScoreText')
-      },
-      {
-        title: t('dataSources'),
-        text: t('dataSourcesText')
-      }
-    ].forEach(function (item) {
-      var card = document.createElement('div');
-      card.className = 'overview-info-card';
-
-      card.innerHTML =
-        '<h3>' + escapeHTML(item.title) + '</h3>' +
-        '<p>' + escapeHTML(item.text) + '</p>';
-
-      cards.appendChild(card);
-    });
-
-    /* Coming soon */
-    var coming = document.createElement('div');
-    coming.className = 'overview-coming';
-
-    coming.innerHTML =
-      '<h3>' + escapeHTML(t('moreComing')) + '</h3>' +
-      '<p>' + escapeHTML(t('moreComingText')) + '</p>';
-
     container.appendChild(hero);
-    container.appendChild(cards);
-    container.appendChild(coming);
 
-    /*
-      Render sonrası güvenlik:
-      Eğer başka işlem class'ları bozarsa tekrar ekliyoruz.
-    */
     container.classList.add('page');
     container.classList.add('srd-active');
   }
 
   function escapeHTML(value) {
-    return String(value)
+    return String(value || '')
       .replace(/&/g, '&amp;')
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;')
