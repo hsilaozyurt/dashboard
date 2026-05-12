@@ -1,0 +1,35 @@
+/* dashboard.css */
+.dashboard-page { display: flex; flex-direction: column; }
+
+.dashboard-main { padding: 20px 24px; display: flex; flex-direction: column; gap: 16px; }
+
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+}
+
+.charts-row {
+  display: grid;
+  grid-template-columns: 1fr 1.2fr;
+  gap: 14px;
+}
+
+.bottom-row {
+  display: grid;
+  grid-template-columns: 1fr 1.4fr;
+  gap: 14px;
+}
+
+.chart-wrap { position: relative; height: 220px; }
+.chart-wrap-lg { position: relative; height: 260px; }
+
+.donut-wrap { display: flex; align-items: center; gap: 18px; }
+.donut-canvas { position: relative; width: 140px; height: 140px; flex-shrink: 0; }
+.donut-legend { flex: 1; min-width: 0; }
+
+@media (max-width: 1100px) {
+  .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+  .charts-row { grid-template-columns: 1fr; }
+  .bottom-row { grid-template-columns: 1fr; }
+}

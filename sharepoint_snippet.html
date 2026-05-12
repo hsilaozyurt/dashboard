@@ -1,0 +1,1386 @@
+<!-- Safety Risk Dashboard -->
+<div id="srd-iframe-wrap" style="width:100%;border:none;margin:0;padding:0;display:block"></div>
+<script>
+(function(){
+  var w=document.getElementById('srd-iframe-wrap');
+  var f=document.createElement('iframe');
+  f.style.cssText='width:100%;border:none;display:block;min-height:100vh;';
+  f.scrolling='no'; w.appendChild(f);
+  var d=f.contentDocument||f.contentWindow.document;
+  d.open();
+  d.write(`<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><style>/* Safety Risk Dashboard — dashboard.css v3 */
+
+#srd-root {
+  --bg:        #0f1623;
+  --bg2:       #141d2e;
+  --bg3:       #1a2540;
+  --surface:   #1e2d45;
+  --surface2:  #243452;
+  --surface3:  #2a3d60;
+  --border:    rgba(255,255,255,.08);
+  --border2:   rgba(255,255,255,.14);
+  --text:      #e8edf5;
+  --text2:     #94a8c4;
+  --text3:     #5a7290;
+  --ca:  #e05252; --ca-bg: rgba(224,82,82,.12);  --ca-bd: rgba(224,82,82,.3);
+  --cb:  #e08c3a; --cb-bg: rgba(224,140,58,.12); --cb-bd: rgba(224,140,58,.3);
+  --cc:  #c4a832; --cc-bg: rgba(196,168,50,.12); --cc-bd: rgba(196,168,50,.3);
+  --cd:  #3cb87a; --cd-bg: rgba(60,184,122,.12); --cd-bd: rgba(60,184,122,.3);
+  --ce:  #4a9fd4; --ce-bg: rgba(74,159,212,.12); --ce-bd: rgba(74,159,212,.3);
+  --accent:    #3b82f6;
+  --accent2:   #60a5fa;
+  --accent-bg: rgba(59,130,246,.15);
+  --accent-bd: rgba(59,130,246,.35);
+  --sb-w: 200px;
+  --r: 6px; --r-l: 10px;
+  --sh: 0 2px 8px rgba(0,0,0,.3);
+  --sh-m: 0 4px 16px rgba(0,0,0,.4);
+  --font: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+  --mono: 'Cascadia Code', Consolas, monospace;
+}
+
+#srd-root *, #srd-root *::before, #srd-root *::after {
+  box-sizing: border-box; margin: 0; padding: 0;
+}
+#srd-root {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 13px;
+  line-height: 1.5;
+  display: flex;
+  min-height: 100vh;
+}
+
+/* ── SIDEBAR ──────────────────────────────────────────────────── */
+.srd-sidebar {
+  width: var(--sb-w);
+  min-width: var(--sb-w);
+  background: var(--bg2);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
+  z-index: 100;
+  flex-shrink: 0;
+}
+.srd-sidebar::-webkit-scrollbar { width: 3px; }
+.srd-sidebar::-webkit-scrollbar-thumb { background: var(--surface3); border-radius: 2px; }
+
+.srd-sb-logo {
+  padding: 18px 16px;
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 10px;
+}
+.srd-sb-logo-icon {
+  width: 32px; height: 32px;
+  background: linear-gradient(135deg, var(--accent), #1d4ed8);
+  border-radius: var(--r);
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 4px 12px rgba(59,130,246,.3);
+  flex-shrink: 0;
+}
+.srd-sb-logo-icon svg { color: #fff; }
+.srd-sb-logo-title { font-size: 12px; font-weight: 700; color: var(--text); line-height: 1.2; }
+.srd-sb-logo-sub   { font-size: 10px; color: var(--text3); margin-top: 1px; }
+
+.srd-sb-section {
+  padding: 16px 16px 6px;
+  font-size: 10px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: .1em; color: var(--text3);
+}
+
+.srd-sb-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 16px;
+  font-size: 13px; color: var(--text2);
+  cursor: pointer;
+  border-left: 3px solid transparent;
+  transition: background .15s, color .15s, border-color .15s;
+  user-select: none;
+}
+.srd-sb-item svg { flex-shrink: 0; opacity: .65; transition: opacity .15s; }
+.srd-sb-item:hover { background: rgba(255,255,255,.05); color: var(--text); }
+.srd-sb-item:hover svg { opacity: 1; }
+.srd-sb-item.active {
+  background: var(--accent-bg);
+  border-left-color: var(--accent);
+  color: var(--accent2);
+}
+.srd-sb-item.active svg { opacity: 1; color: var(--accent2); }
+
+.srd-sb-spacer { flex: 1; }
+
+.srd-sb-contact {
+  padding: 14px 16px;
+  border-top: 1px solid var(--border);
+}
+.srd-sb-contact-label {
+  font-size: 10px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .1em; color: var(--text3); margin-bottom: 8px;
+}
+.srd-sb-contact-email {
+  display: flex; align-items: center; gap: 7px;
+  font-size: 11px; color: var(--text2);
+  text-decoration: none; transition: color .15s;
+  word-break: break-all;
+}
+.srd-sb-contact-email:hover { color: var(--accent2); }
+.srd-sb-contact-email svg { opacity: .6; flex-shrink: 0; }
+
+/* ── CONTENT WRAPPER ──────────────────────────────────────────── */
+.srd-content { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+
+/* ── TOP BAR ──────────────────────────────────────────────────── */
+.srd-topbar {
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+  padding: 0 24px; height: 52px;
+  display: flex; align-items: center; justify-content: space-between;
+  box-shadow: 0 2px 12px rgba(0,0,0,.3);
+}
+.srd-topbar-left {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 14px; font-weight: 700; color: var(--text);
+}
+.srd-topbar-badge {
+  background: var(--accent-bg); color: var(--accent2);
+  border: 1px solid var(--accent-bd);
+  font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 20px;
+}
+.srd-topbar-right { font-size: 11px; color: var(--text3); font-family: var(--mono); }
+
+/* ── FILTER BAR ───────────────────────────────────────────────── */
+.srd-filterbar {
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+  padding: 10px 24px;
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+}
+.srd-filter-label {
+  display: flex; align-items: center; gap: 5px;
+  font-size: 11px; font-weight: 700; color: var(--accent2);
+  text-transform: uppercase; letter-spacing: .1em; margin-right: 4px;
+}
+.srd-filterbar select {
+  background: var(--surface); border: 1px solid var(--border2);
+  color: var(--text); font-family: var(--font); font-size: 12px;
+  padding: 5px 10px; border-radius: var(--r);
+  height: 32px; outline: none; cursor: pointer; transition: border-color .15s;
+}
+.srd-filterbar select:hover { border-color: var(--accent); }
+.srd-filterbar select:focus { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-bg); }
+.srd-filterbar select option { background: var(--bg3); }
+
+/* ── MAIN ─────────────────────────────────────────────────────── */
+.srd-main { padding: 20px 24px; display: flex; flex-direction: column; gap: 16px; }
+
+/* ── PAGES ────────────────────────────────────────────────────── */
+.srd-page { display: none; }
+.srd-page.active { display: block; }
+
+/* ── KPI GRID ─────────────────────────────────────────────────── */
+.srd-kpi-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 14px; }
+
+.srd-kpi {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--r-l); padding: 20px 22px;
+  box-shadow: var(--sh); position: relative; overflow: hidden;
+  transition: transform .2s, box-shadow .2s;
+}
+.srd-kpi::before {
+  content: ''; position: absolute;
+  top: 0; left: 0; right: 0; height: 3px;
+  border-radius: var(--r-l) var(--r-l) 0 0;
+}
+.srd-kpi:hover { transform: translateY(-2px); box-shadow: var(--sh-m); }
+.srd-kpi.k-blue::before   { background: linear-gradient(90deg,var(--accent),var(--accent2)); }
+.srd-kpi.k-orange::before { background: linear-gradient(90deg,var(--cb),#f59e0b); }
+.srd-kpi.k-green::before  { background: linear-gradient(90deg,var(--cd),#34d399); }
+.srd-kpi.k-gray::before   { background: linear-gradient(90deg,var(--text3),var(--text2)); }
+
+.srd-kpi-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+.srd-kpi-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .09em; color: var(--text3); }
+.srd-kpi-icon {
+  width: 36px; height: 36px; border-radius: var(--r);
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.srd-kpi.k-blue   .srd-kpi-icon { background: var(--accent-bg); color: var(--accent2); }
+.srd-kpi.k-orange .srd-kpi-icon { background: var(--cb-bg); color: var(--cb); }
+.srd-kpi.k-green  .srd-kpi-icon { background: var(--cd-bg); color: var(--cd); }
+.srd-kpi.k-gray   .srd-kpi-icon { background: rgba(255,255,255,.06); color: var(--text2); }
+
+.srd-kpi-val {
+  font-size: 36px; font-weight: 300; line-height: 1;
+  letter-spacing: -.03em; margin-bottom: 6px; font-family: var(--mono);
+}
+.srd-kpi.k-blue   .srd-kpi-val { color: var(--accent2); }
+.srd-kpi.k-orange .srd-kpi-val { color: var(--cb); }
+.srd-kpi.k-green  .srd-kpi-val { color: var(--cd); }
+.srd-kpi.k-gray   .srd-kpi-val { color: var(--text); }
+.srd-kpi-sub { font-size: 11px; color: var(--text3); }
+
+/* ── CARD ─────────────────────────────────────────────────────── */
+.srd-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--r-l); box-shadow: var(--sh);
+}
+.srd-card-header {
+  padding: 14px 18px 12px; border-bottom: 1px solid var(--border);
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 8px;
+}
+.srd-card-title {
+  font-size: 13px; font-weight: 700; color: var(--text);
+  display: flex; align-items: center; gap: 8px; margin-bottom: 2px;
+}
+.srd-card-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.srd-card-sub { font-size: 11px; color: var(--text3); }
+.srd-card-body { padding: 16px 18px; }
+
+.srd-charts-row { display: grid; grid-template-columns: 1fr 1fr 1.4fr; gap: 14px; }
+.srd-chart-wrap { position: relative; height: 240px; }
+
+/* ── DONUT ────────────────────────────────────────────────────── */
+.srd-dtabs { display: flex; gap: 5px; flex-wrap: wrap; margin-bottom: 14px; }
+.srd-dtab {
+  font-size: 11px; padding: 4px 10px; border-radius: 20px;
+  border: 1px solid var(--border2); background: transparent;
+  color: var(--text2); cursor: pointer; font-family: var(--font); transition: all .15s;
+}
+.srd-dtab:hover { border-color: var(--accent); color: var(--accent2); }
+.srd-dtab.active { background: var(--accent-bg); border-color: var(--accent-bd); color: var(--accent2); }
+
+.srd-donut-wrap   { display: flex; align-items: center; gap: 18px; }
+.srd-donut-canvas { position: relative; width: 130px; height: 130px; flex-shrink: 0; }
+.srd-donut-legend { flex: 1; min-width: 0; }
+
+.srd-leg-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 5px 0; border-bottom: 1px solid var(--border); font-size: 11px; gap: 6px;
+}
+.srd-leg-row:last-child { border-bottom: none; }
+.srd-leg-left  { display: flex; align-items: center; gap: 7px; min-width: 0; }
+.srd-leg-dot   { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
+.srd-leg-name  { color: var(--text2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.srd-leg-right { display: flex; align-items: center; gap: 5px; flex-shrink: 0; }
+.srd-leg-val   { font-family: var(--mono); font-size: 11px; color: var(--text); }
+.srd-leg-pct   { font-size: 10px; color: var(--text3); min-width: 34px; text-align: right; }
+
+/* ── SPI TABLE (Overview page) ────────────────────────────────── */
+.srd-tbl-controls { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.srd-tbl-count { font-size: 11px; color: var(--text3); font-family: var(--mono); }
+
+/* ── ALL STATIONS PAGE ────────────────────────────────────────── */
+.srd-allst-header {
+  padding: 24px 24px 0;
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  flex-wrap: wrap;
+}
+.srd-allst-title {
+  font-size: 20px; font-weight: 700; color: var(--text);
+  letter-spacing: -.02em;
+}
+.srd-allst-controls {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+}
+.srd-allst-search {
+  background: var(--surface); border: 1px solid var(--border2);
+  color: var(--text); font-family: var(--font); font-size: 12px;
+  padding: 6px 14px; border-radius: 20px;
+  height: 34px; width: 160px; outline: none; transition: border-color .15s;
+}
+.srd-allst-search::placeholder { color: var(--text3); }
+.srd-allst-search:focus { border-color: var(--accent); }
+
+.srd-allst-filters { display: flex; gap: 6px; }
+.srd-allst-filter {
+  background: var(--surface); border: 1px solid var(--border2);
+  color: var(--text); font-family: var(--font); font-size: 12px;
+  padding: 5px 10px; border-radius: var(--r);
+  height: 34px; outline: none; cursor: pointer;
+}
+.srd-allst-filter option { background: var(--bg3); }
+
+.srd-allst-clear {
+  background: transparent; border: 1px solid var(--border2);
+  color: var(--accent2); font-family: var(--font); font-size: 12px;
+  padding: 5px 12px; border-radius: var(--r); height: 34px;
+  cursor: pointer; transition: all .15s;
+}
+.srd-allst-clear:hover { background: var(--accent-bg); border-color: var(--accent-bd); }
+
+.srd-allst-table-wrap {
+  margin: 16px 24px 0;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--r-l); overflow: hidden; box-shadow: var(--sh);
+}
+.srd-allst-table-scroll { overflow-y: auto; max-height: calc(100vh - 260px); }
+.srd-allst-table-scroll::-webkit-scrollbar { width: 4px; }
+.srd-allst-table-scroll::-webkit-scrollbar-thumb { background: var(--surface3); border-radius: 2px; }
+
+.srd-allst-table { width: 100%; border-collapse: collapse; }
+.srd-allst-table thead th {
+  padding: 10px 16px; text-align: left;
+  font-size: 11px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .07em; color: var(--text3);
+  border-bottom: 1px solid var(--border);
+  background: var(--surface2);
+  position: sticky; top: 0; z-index: 1; white-space: nowrap;
+  cursor: pointer; user-select: none;
+}
+.srd-allst-table thead th:hover { color: var(--text2); }
+.srd-allst-table thead th.sort-asc::after  { content: ' ↑'; color: var(--accent2); }
+.srd-allst-table thead th.sort-desc::after { content: ' ↓'; color: var(--accent2); }
+
+.srd-allst-table tbody td {
+  padding: 10px 16px; border-bottom: 1px solid var(--border);
+  font-size: 13px; vertical-align: middle;
+}
+.srd-allst-table tbody tr:last-child td { border-bottom: none; }
+.srd-allst-table tbody tr:hover td { background: var(--surface2); }
+
+.srd-iata {
+  font-family: var(--mono); font-size: 14px; font-weight: 700;
+  color: var(--accent2); letter-spacing: .02em;
+}
+.srd-num { font-family: var(--mono); font-size: 12px; color: var(--text2); }
+
+.srd-score-wrap { display: flex; align-items: center; gap: 8px; }
+.srd-score-bg   { flex: 1; background: var(--bg); border-radius: 3px; height: 5px; min-width: 60px; }
+.srd-score-fill { height: 100%; border-radius: 3px; }
+
+.srd-badge {
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: 3px 9px; border-radius: 4px;
+  font-size: 11px; font-weight: 700; font-family: var(--mono);
+  border: 1px solid transparent;
+}
+.srd-badge.a { background: var(--ca-bg); color: var(--ca); border-color: var(--ca-bd); }
+.srd-badge.b { background: var(--cb-bg); color: var(--cb); border-color: var(--cb-bd); }
+.srd-badge.c { background: var(--cc-bg); color: var(--cc); border-color: var(--cc-bd); }
+.srd-badge.d { background: var(--cd-bg); color: var(--cd); border-color: var(--cd-bd); }
+.srd-badge.e { background: var(--ce-bg); color: var(--ce); border-color: var(--ce-bd); }
+
+.srd-allst-count {
+  padding: 10px 24px;
+  font-size: 11px; color: var(--text3); font-family: var(--mono);
+}
+
+.srd-profile-bars { display: flex; gap: 2px; margin-top: 3px; height: 3px; }
+.srd-profile-bar  { height: 3px; border-radius: 1px; min-width: 2px; }
+
+/* Shared table styles (SPI table in overview) */
+.srd-tbl-wrap { overflow-y: auto; max-height: 280px; }
+.srd-tbl-wrap::-webkit-scrollbar { width: 4px; }
+.srd-tbl-wrap::-webkit-scrollbar-thumb { background: var(--surface3); border-radius: 2px; }
+.srd-tbl-wrap table { width: 100%; border-collapse: collapse; }
+.srd-tbl-wrap th {
+  padding: 8px 12px; text-align: left;
+  font-size: 10px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .08em; color: var(--text3);
+  border-bottom: 1px solid var(--border);
+  background: var(--surface); position: sticky; top: 0; z-index: 1; white-space: nowrap;
+}
+.srd-tbl-wrap td {
+  padding: 8px 12px; border-bottom: 1px solid var(--border);
+  font-size: 12px; vertical-align: middle; color: var(--text);
+}
+.srd-tbl-wrap tr:last-child td { border-bottom: none; }
+.srd-tbl-wrap tr:hover td { background: var(--surface2); }
+
+.srd-sev-btns { display: flex; gap: 3px; }
+.srd-sev-btn {
+  font-size: 10px; font-weight: 700; padding: 0 8px;
+  border-radius: 4px; border: 1px solid var(--border2);
+  background: transparent; color: var(--text3);
+  cursor: pointer; font-family: var(--mono); height: 28px; transition: all .15s;
+}
+.srd-sev-btn:hover { border-color: var(--text2); color: var(--text); }
+.srd-sev-btn.on-all { background: var(--surface3); color: var(--text); }
+.srd-sev-btn.on-a { background: var(--ca-bg); border-color: var(--ca-bd); color: var(--ca); }
+.srd-sev-btn.on-b { background: var(--cb-bg); border-color: var(--cb-bd); color: var(--cb); }
+.srd-sev-btn.on-c { background: var(--cc-bg); border-color: var(--cc-bd); color: var(--cc); }
+.srd-sev-btn.on-d { background: var(--cd-bg); border-color: var(--cd-bd); color: var(--cd); }
+.srd-sev-btn.on-e { background: var(--ce-bg); border-color: var(--ce-bd); color: var(--ce); }
+
+.srd-sort-sel {
+  background: var(--bg3); border: 1px solid var(--border2);
+  color: var(--text); font-family: var(--font); font-size: 11px;
+  padding: 2px 8px; border-radius: 4px; height: 28px; cursor: pointer; outline: none;
+}
+.srd-sort-sel option { background: var(--bg3); }
+.srd-search {
+  background: var(--bg3); border: 1px solid var(--border2);
+  color: var(--text); font-family: var(--font); font-size: 11px;
+  padding: 4px 10px; border-radius: 20px;
+  height: 30px; width: 140px; outline: none;
+}
+.srd-search::placeholder { color: var(--text3); }
+.srd-search:focus { border-color: var(--accent); }
+
+@media (max-width: 1100px) {
+  .srd-kpi-grid   { grid-template-columns: repeat(2,1fr); }
+  .srd-charts-row { grid-template-columns: 1fr 1fr; }
+  .srd-charts-row .srd-card:last-child { grid-column: 1/-1; }
+}
+@media (max-width: 768px) {
+  .srd-sidebar { display: none; }
+  .srd-kpi-grid { grid-template-columns: 1fr 1fr; }
+  .srd-charts-row { grid-template-columns: 1fr; }
+}
+body{margin:0;padding:0}</style></head><body><div id="srd-root"></div><script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"><\/script><script>/* ================================================================
+   Safety Risk Dashboard — dashboard.js
+   Sharepoint: Site Assets/dashboard/dashboard.js
+
+   CSV KOLONLARI:
+   All_Station_Info.csv  → Loc, Occurence_No, Report_type, Department,
+                            Status, MC_Date, MC_Year, MC_Year_Month,
+                            Region, Sub_Region, Fleet, likelihood,
+                            likelihoodScore, severity, severityScore,
+                            Risk_Level, RiskScore, NonSPI, SPI_1, SPI2,
+                            Operational_Phase
+   Ucus_sayilari.csv     → Loc, Flight Count
+   SPI_kategorileri.csv  → SPI, title, SPI_Class
+
+   COMPOSITE SCORE = (Σ RiskScore) / Flight_Count × 100
+   ================================================================ */
+
+(function (W) {
+  'use strict';
+
+  /* ── RİSK MATRİSİ ────────────────────────────────────────────
+     Risk_Level zaten CSV'den geliyor (A/B/C/D/E)
+     Static data for displaying the matrix table on screen:       */
+  var MATRIX = {
+    severities:   [
+      { label: 'S5 (20,00)', val: 20   },
+      { label: 'S4 (15,00)', val: 15   },
+      { label: 'S3 (7,00)',  val: 7    },
+      { label: 'S2 (3,50)',  val: 3.5  },
+      { label: 'S1 (2,00)',  val: 2    },
+      { label: 'S0 (0,10)',  val: 0.10 },
+    ],
+    likelihoods:  [
+      { label: 'Pe (1,50)',  val: 1.5  },
+      { label: 'P0 (1,80)',  val: 1.8  },
+      { label: 'P1 (2,50)',  val: 2.5  },
+      { label: 'P2 (4,00)',  val: 4    },
+      { label: 'P3 (5,00)',  val: 5    },
+      { label: 'P4 (6,50)',  val: 6.5  },
+      { label: 'P5 (10,00)', val: 10   },
+    ],
+    category: function (score) {
+      if (score >= 80)  return 'A';
+      if (score >= 45)  return 'B';
+      if (score >= 22)  return 'C';
+      if (score >= 10)  return 'D';
+      return 'E';
+    }
+  };
+
+  var SEV_COLOR = { A:'#b03a2e', B:'#b85c10', C:'#8c6d10', D:'#276744', E:'#245280' };
+  var SEV_BG    = { A:'#fdf1f0', B:'#fdf5ec', C:'#fdfaec', D:'#f0faf4', E:'#eff4fb' };
+
+  /* Chart renk paleti (SPI, Fleet, Dept grafikleri için) */
+  var PALETTE = [
+    '#1a56db','#b85c10','#276744','#8c6d10','#245280',
+    '#6d28d9','#0e7490','#be123c','#15803d','#92400e'
+  ];
+
+  /* ── CSV PARSER ──────────────────────────────────────────────── */
+  function parseCSV(text) {
+    var lines = text.trim().split(/\\r?\\n/);
+    if (lines.length < 2) return [];
+    var headers = lines[0].split(',').map(function (h) { return h.trim(); });
+    return lines.slice(1).map(function (line) {
+      /* Tırnak içi virgülleri korumak için basit parser */
+      var cols = [];
+      var cur = '', inQ = false;
+      for (var i = 0; i < line.length; i++) {
+        var ch = line[i];
+        if (ch === '"') { inQ = !inQ; }
+        else if (ch === ',' && !inQ) { cols.push(cur.trim()); cur = ''; }
+        else { cur += ch; }
+      }
+      cols.push(cur.trim());
+      var obj = {};
+      headers.forEach(function (h, i) { obj[h] = (cols[i] || '').trim(); });
+      return obj;
+    }).filter(function (r) {
+      return Object.values(r).some(function (v) { return v !== ''; });
+    });
+  }
+
+  function loadCSV(path) {
+    return fetch(path).then(function (r) {
+      if (!r.ok) throw new Error('Failed to load CSV: ' + path);
+      return r.text();
+    }).then(parseCSV);
+  }
+
+  /* ── FORMAT ──────────────────────────────────────────────────── */
+  function fmtNum(n, dec) {
+    dec = dec == null ? 1 : dec;
+    return parseFloat(n).toLocaleString('tr-TR', {
+      minimumFractionDigits: dec, maximumFractionDigits: dec
+    });
+  }
+  function fmtInt(n) { return parseInt(n).toLocaleString('tr-TR'); }
+
+  /* ── DOM HELPER ──────────────────────────────────────────────── */
+  function el(tag, attrs, children) {
+    var e = document.createElement(tag);
+    if (attrs) Object.keys(attrs).forEach(function (k) {
+      var v = attrs[k];
+      if (k === 'class') e.className = v;
+      else if (k === 'style') e.style.cssText = v;
+      else if (k.slice(0,2) === 'on') e[k] = v;
+      else e.setAttribute(k, v);
+    });
+    if (children) (Array.isArray(children) ? children : [children]).forEach(function (c) {
+      if (c == null) return;
+      e.appendChild(typeof c === 'string' ? document.createTextNode(c) : c);
+    });
+    return e;
+  }
+
+  /* ── SVG ICONS ───────────────────────────────────────────────── */
+  function svgIcon(path, size) {
+    size = size || 14;
+    var s = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    s.setAttribute('viewBox','0 0 24 24');
+    s.setAttribute('width', size);
+    s.setAttribute('height', size);
+    s.setAttribute('fill','none');
+    s.setAttribute('stroke','currentColor');
+    s.setAttribute('stroke-width','2');
+    s.setAttribute('stroke-linecap','round');
+    s.setAttribute('stroke-linejoin','round');
+    s.innerHTML = path;
+    return s;
+  }
+  var IC = {
+    shield:  '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>',
+    alert:   '<circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>',
+    plane:   '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',
+    filter:  '<polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>',
+    station: '<rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16"/>',
+    chart:   '<line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>',
+  };
+
+  /* ── VERİ İŞLEME ─────────────────────────────────────────────── */
+  function processData(incidents, flightRows, spiRows) {
+    /* Uçuş haritası: Loc → Flight Count */
+    var flightMap = {};
+    flightRows.forEach(function (r) {
+      var loc = (r['Loc'] || r['LOC'] || r['loc'] || '').toUpperCase().trim();
+      var cnt = parseFloat((r['Flight Count'] || r['Ucus_Sayisi'] || r['flight_count'] || '0').replace(/[^0-9.]/g,'')) || 0;
+      if (loc) flightMap[loc] = cnt;
+    });
+
+    /* SPI haritası: SPI kodu → { title, SPI_Class } */
+    var spiMap = {};
+    spiRows.forEach(function (r) {
+      var code = (r['SPI'] || '').trim();
+      if (code) spiMap[code] = { title: (r['title'] || code), cls: (r['SPI_Class'] || '') };
+    });
+
+    /* Olayları normalize et */
+    var rows = incidents.map(function (r) {
+      var loc       = (r['Loc'] || r['LOC'] || '').toUpperCase().trim();
+      var riskScore = parseFloat((r['RiskScore'] || r['Risk_Score'] || '0').toString().replace(',','.')) || 0;
+      var rlRaw = (r['Risk_Level'] || r['RiskLevel'] || '').trim().toUpperCase();
+      var riskLevel = rlRaw.charAt(0); /* Take first char: D-LOW → D, A-CRITICAL → A */
+      if (!riskLevel || !'ABCDE'.includes(riskLevel)) riskLevel = MATRIX.category(riskScore);
+
+      /* SPI etiketleri: NonSPI false ise SPI_1 ve SPI2 dolu olabilir */
+      var nonSPI = (r['NonSPI'] || '').toLowerCase();
+      var isNonSPI = (nonSPI === 'true' || nonSPI === '1');
+      var spi1 = (r['SPI_1'] || r['SPI1'] || '').trim();
+      var spi2 = (r['SPI_2'] || r['SPI2'] || '').trim();
+      var spiTags = [];
+      if (!isNonSPI) {
+        if (spi1) spiTags.push(spi1);
+        if (spi2) spiTags.push(spi2);
+      }
+
+      return {
+        loc:       loc,
+        occNo:     r['Occurrence_No'] || r['Occurence_No'] || '',
+        repType:   r['Report_Type'] || r['Report_type'] || '',
+        dept:      r['Department'] || '',
+        status:    r['Status'] || '',
+        date:      r['MC_Date'] || '',
+        year:      r['MC_Year'] || '',
+        yearMonth: r['MC_Year_Month'] || '',
+        region:    r['Bölge'] || r['Bolge'] || r['Region'] || '',
+        subRegion: r['Alt Bölge'] || r['Alt_Bolge'] || r['Sub_Region'] || '',
+        fleet:     r['Fleet'] || '',
+        likelihood:      r['likelihood'] || '',
+        likelihoodScore: parseFloat(r['likelihoodScore'] || r['LikelihoodScore'] || 0) || 0,
+        severity:        r['severity'] || '',
+        severityScore:   parseFloat(r['severityScore'] || r['SeverityScore'] || 0) || 0,
+        riskLevel:  riskLevel,
+        riskScore:  riskScore,
+        nonSPI:     isNonSPI,
+        spiTags:    spiTags,
+        opPhase:    r['Operational_Phase'] || '',
+      };
+    }).filter(function (r) { return r.loc; });
+
+    /* Stations bazlı gruplama */
+    var stMap = {};
+    rows.forEach(function (r) {
+      if (!stMap[r.loc]) stMap[r.loc] = { loc: r.loc, incidents: [] };
+      stMap[r.loc].incidents.push(r);
+    });
+
+    var stations = Object.values(stMap).map(function (st) {
+      var incs = st.incidents;
+      var totalRisk = incs.reduce(function (s, i) { return s + i.riskScore; }, 0);
+      var flights   = flightMap[st.loc] || 0;
+      var composite = flights > 0 ? (totalRisk / flights * 100) : totalRisk / incs.length;
+      var catCounts = { A:0, B:0, C:0, D:0, E:0 };
+      incs.forEach(function (i) { if (catCounts[i.riskLevel] != null) catCounts[i.riskLevel]++; });
+      return {
+        loc:        st.loc,
+        incidents:  incs,
+        count:      incs.length,
+        totalRisk:  totalRisk,
+        flights:    flights,
+        composite:  composite,
+        compLevel:  MATRIX.category(composite),
+        catCounts:  catCounts,
+        highSev:    (catCounts.A || 0) + (catCounts.B || 0),
+      };
+    });
+    stations.sort(function (a, b) { return b.composite - a.composite; });
+
+    return { rows: rows, stations: stations, flightMap: flightMap, spiMap: spiMap };
+  }
+
+  /* ── KPI ─────────────────────────────────────────────────────── */
+  function calcKPIs(rows, stations) {
+    var totalInc    = rows.length;
+    var totalFlight = stations.reduce(function (s, st) { return s + st.flights; }, 0);
+    var avgRisk     = rows.length ? rows.reduce(function (s, r) { return s + r.riskScore; }, 0) / rows.length : 0;
+    var highSev     = rows.filter(function (r) { return r.riskLevel === 'A' || r.riskLevel === 'B'; }).length;
+    var topSt       = stations[0] || null;
+    return { totalInc, totalFlight, avgRisk, highSev, topSt, stCount: stations.length };
+  }
+
+  /* ════════════════════════════════════════════════════════════════
+     RENDER
+     ════════════════════════════════════════════════════════════════ */
+
+  /* ── TOP BAR ─────────────────────────────────────────────────── */
+
+  /* ── FILTER BAR ──────────────────────────────────────────────── */
+  function renderFilterBar(container, rows, spiMap, onChange) {
+    if(!container) return;
+    var years  = uniq(rows.map(function(r){return r.year;})).filter(Boolean).sort().reverse();
+    var months = uniq(rows.map(function(r){return r.yearMonth;})).filter(Boolean).sort().reverse();
+    var depts  = uniq(rows.map(function(r){return r.dept;})).filter(Boolean).sort();
+    var fleets = uniq(rows.map(function(r){return r.fleet;})).filter(Boolean).sort();
+    var rtypes = uniq(rows.map(function(r){return r.repType;})).filter(Boolean).sort();
+    var regions= uniq(rows.map(function(r){return r.region;})).filter(Boolean).sort();
+    var spiCodes=uniq(rows.reduce(function(acc,r){return acc.concat(r.spiTags);},[])).filter(Boolean).sort();
+    function mkSel(id,label,opts){
+      var s=el('select',{id:id,onchange:onChange});
+      s.appendChild(el('option',{value:''},label));
+      opts.forEach(function(o){s.appendChild(el('option',{value:o},o));});
+      return s;
+    }
+    var ns='http://www.w3.org/2000/svg';
+    var fIcon=document.createElementNS(ns,'svg');
+    fIcon.setAttribute('viewBox','0 0 24 24');fIcon.setAttribute('width','13');fIcon.setAttribute('height','13');
+    fIcon.setAttribute('fill','none');fIcon.setAttribute('stroke','currentColor');fIcon.setAttribute('stroke-width','2');
+    fIcon.innerHTML='<polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>';
+    container.innerHTML='';
+    var lbl=el('div',{class:'srd-filter-label'},[fIcon,document.createTextNode('Filter')]);
+    [lbl,mkSel('srd-f-year','All Years',years),mkSel('srd-f-month','All Months',months),
+     mkSel('srd-f-dept','All Departments',depts),mkSel('srd-f-fleet','All Fleets',fleets),
+     mkSel('srd-f-rtype','All Report Types',rtypes),mkSel('srd-f-bolge','All Regions',regions),
+     mkSel('srd-f-sev','All Levels',['A','B','C','D','E']),
+     mkSel('srd-f-status','All Statuses',['Open','Closed','In Progress']),
+     mkSel('srd-f-spi','All SPI',spiCodes)
+    ].forEach(function(c){container.appendChild(c);});
+  }
+
+
+  /* ── KPI CARDS ───────────────────────────────────────────────── */
+  function renderKPIs(container, kpis) {
+    container.innerHTML = '';
+    var cards = [
+      { cls:'k-blue',   icon:IC.alert,   label:'Total Recorded Events', val: fmtInt(kpis.totalInc),    sub:'All stations' },
+      { cls:'k-green',  icon:IC.plane,   label:'Total Flights',         val: fmtInt(kpis.totalFlight), sub:'Station total' },
+      { cls:'k-orange', icon:IC.chart,   label:'Average Risk Score',    val: fmtNum(kpis.avgRisk, 1),  sub:'All events average' },
+      { cls:'k-gray',   icon:IC.station, label:'Monitored Stations',    val: String(kpis.stCount),     sub:'Active' },
+    ];
+    cards.forEach(function (c) {
+      container.appendChild(el('div', { class:'srd-kpi ' + c.cls }, [
+        el('div', { class:'srd-kpi-top' }, [
+          el('div', { class:'srd-kpi-label' }, c.label),
+          el('div', { class:'srd-kpi-icon' }, [ svgIcon(c.icon, 18) ]),
+        ]),
+        el('div', { class:'srd-kpi-val' }, c.val),
+        el('div', { class:'srd-kpi-sub' }, c.sub),
+      ]));
+    });
+  }
+
+  /* ── BAR CHART ───────────────────────────────────────────────── */
+  function renderBarChart(canvasId, stations) {
+    var top10 = stations.slice(0, 10);
+    var ex = Chart.getChart(canvasId); if (ex) ex.destroy();
+    new Chart(document.getElementById(canvasId), {
+      type: 'bar',
+      data: {
+        labels: top10.map(function(s){ return s.loc; }),
+        datasets: [{ label:'Composite Score',
+          data: top10.map(function(s){ return parseFloat(s.composite.toFixed(2)); }),
+          backgroundColor: top10.map(function(s){ return SEV_BG[s.compLevel]; }),
+          borderColor:     top10.map(function(s){ return SEV_COLOR[s.compLevel]; }),
+          borderWidth: 1, borderRadius: 2, barThickness: 14,
+        }],
+      },
+      options: {
+        indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: { callbacks: {
+            label:       function(c){ return ' Composite: ' + c.raw.toFixed(2); },
+            afterLabel:  function(c){ var s=top10[c.dataIndex]; return ' Level: '+s.compLevel+'  |  Events: '+s.count; }
+          }},
+        },
+        scales: {
+          x: { grid:{ color:'#e9ecf0' }, ticks:{ font:{size:10}, color:'#8a97a8' } },
+          y: { grid:{ display:false },   ticks:{ font:{size:11, weight:'600'}, color:'#1c2b3a' } },
+        },
+      },
+    });
+  }
+
+  /* ── DONUT CHART ─────────────────────────────────────────────── */
+  var _donut = null;
+  function buildDonutSets(rows, spiMap) {
+    /* Risk Level */
+    var sev = { A:0, B:0, C:0, D:0, E:0 };
+    rows.forEach(function(r){ if(sev[r.riskLevel]!=null) sev[r.riskLevel]++; });
+
+    /* SPI Class dağılımı */
+    var spiClassMap = {};
+    rows.forEach(function(r){
+      r.spiTags.forEach(function(tag){
+        var cls = (spiMap[tag] && spiMap[tag].cls) ? spiMap[tag].cls : (tag || 'NonSPI');
+        spiClassMap[cls] = (spiClassMap[cls]||0) + 1;
+      });
+      if (r.nonSPI || r.spiTags.length === 0) {
+        spiClassMap['NonSPI'] = (spiClassMap['NonSPI']||0) + 1;
+      }
+    });
+
+    /* Fleet dağılımı */
+    var fleetMap = {};
+    rows.forEach(function(r){ if(r.fleet){ fleetMap[r.fleet]=(fleetMap[r.fleet]||0)+1; } });
+
+    /* Department dağılımı */
+    var deptMap = {};
+    rows.forEach(function(r){ if(r.dept){ deptMap[r.dept]=(deptMap[r.dept]||0)+1; } });
+
+    /* Aylık trend için line chart kullanacağız, burada sadece donut setleri */
+    function toSet(map, colors) {
+      var keys = Object.keys(map).sort(function(a,b){ return map[b]-map[a]; });
+      return { labels: keys, data: keys.map(function(k){ return map[k]; }),
+               colors: keys.map(function(_,i){ return colors[i % colors.length]; }) };
+    }
+
+    return {
+      sev: {
+        labels: ['A — Critical','B — High','C — Medium','D — Low','E — Very Low'],
+        data:   [sev.A, sev.B, sev.C, sev.D, sev.E],
+        colors: [SEV_COLOR.A, SEV_COLOR.B, SEV_COLOR.C, SEV_COLOR.D, SEV_COLOR.E],
+      },
+      spi:   toSet(spiClassMap, PALETTE),
+      fleet: toSet(fleetMap,    PALETTE),
+      dept:  toSet(deptMap,     PALETTE),
+    };
+  }
+
+  function renderDonut(canvasId, legendId, key, sets) {
+    var d = sets[key];
+    if (_donut) _donut.destroy();
+    _donut = new Chart(document.getElementById(canvasId), {
+      type: 'doughnut',
+      data: { labels: d.labels, datasets:[{
+        data: d.data, backgroundColor: d.colors, borderWidth: 2, borderColor:'#ffffff'
+      }]},
+      options: {
+        responsive:true, maintainAspectRatio:false, cutout:'62%',
+        plugins: {
+          legend: { display:false },
+          tooltip: { callbacks: { label: function(c){
+            var tot = c.dataset.data.reduce(function(a,b){return a+b;},0);
+            return ' '+c.raw.toLocaleString('tr-TR')+' (%'+(tot?(c.raw/tot*100).toFixed(1):'0')+')';
+          }}},
+        },
+      },
+    });
+    var legEl = document.getElementById(legendId);
+    if (!legEl) return;
+    var total = d.data.reduce(function(a,b){return a+b;},0);
+    legEl.innerHTML = '';
+    d.labels.forEach(function(lbl,i){
+      var pct = total ? (d.data[i]/total*100).toFixed(1) : '0';
+      legEl.appendChild(el('div',{class:'srd-leg-row'},[
+        el('div',{class:'srd-leg-left'},[
+          el('div',{class:'srd-leg-dot',style:'background:'+d.colors[i]}),
+          el('span',{class:'srd-leg-name'},lbl),
+        ]),
+        el('div',{class:'srd-leg-right'},[
+          el('span',{class:'srd-leg-val'},d.data[i].toLocaleString('tr-TR')),
+          el('span',{class:'srd-leg-pct'},'%'+pct),
+        ]),
+      ]));
+    });
+  }
+
+  /* ── LINE CHART (aylık trend) ────────────────────────────────── */
+  function renderLineChart(canvasId, rows) {
+    var monthMap = {};
+    rows.forEach(function(r){
+      var m = (r.yearMonth || r.date || '').slice(0,7);
+      if (m) monthMap[m] = (monthMap[m]||0)+1;
+    });
+    var labels = Object.keys(monthMap).sort();
+    var data   = labels.map(function(k){ return monthMap[k]; });
+    var ex = Chart.getChart(canvasId); if (ex) ex.destroy();
+    new Chart(document.getElementById(canvasId), {
+      type:'line',
+      data:{ labels:labels, datasets:[{
+        label:'Event Count', data:data,
+        borderColor:'#1a56db', backgroundColor:'rgba(26,86,219,.07)',
+        borderWidth:1.5, pointRadius:0, pointHoverRadius:4,
+        tension:0.4, fill:true,
+      }]},
+      options:{
+        responsive:true, maintainAspectRatio:false,
+        plugins:{ legend:{display:false}, tooltip:{callbacks:{label:function(c){return ' '+c.raw+' events';}}} },
+        scales:{
+          x:{ grid:{color:'#e9ecf0'}, ticks:{font:{size:9},color:'#8a97a8',maxTicksLimit:10} },
+          y:{ grid:{color:'#e9ecf0'}, ticks:{font:{size:10},color:'#8a97a8'}, min:0 },
+        },
+      },
+    });
+  }
+
+  /* ── STATION TABLE ───────────────────────────────────────────── */
+
+  /* ── SPI TABLE ──────────────────────────────────────────────── */
+  function renderSPITable(tbodyId, rows, spiMap) {
+    var tbody = document.getElementById(tbodyId);
+    if (!tbody) return;
+
+    /* Build per-SPI aggregation */
+    var spiAgg = {};
+
+    rows.forEach(function(r) {
+      var tags = r.spiTags && r.spiTags.length ? r.spiTags : ['NonSPI'];
+      tags.forEach(function(tag) {
+        if (!spiAgg[tag]) spiAgg[tag] = { code: tag, count: 0, totalRisk: 0, levels: {A:0,B:0,C:0,D:0,E:0} };
+        spiAgg[tag].count++;
+        spiAgg[tag].totalRisk += r.riskScore || 0;
+        if (spiAgg[tag].levels[r.riskLevel] != null) spiAgg[tag].levels[r.riskLevel]++;
+      });
+    });
+
+    var totalEvents = rows.length || 1;
+    var items = Object.values(spiAgg).sort(function(a,b){ return b.totalRisk - a.totalRisk; });
+
+    if (!items.length) {
+      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:20px;color:#8a97a8">No SPI data available</td></tr>';
+      return;
+    }
+
+    var maxCount = Math.max.apply(null, items.map(function(i){ return i.count; })) || 1;
+    var CATS = ['A','B','C','D','E'];
+
+    tbody.innerHTML = '';
+    items.forEach(function(item) {
+      var info     = spiMap[item.code] || {};
+      var title    = info.title || (item.code === 'NonSPI' ? 'Non-SPI Event' : item.code);
+      var cls      = info.cls  || '—';
+      var avgRisk  = item.count ? (item.totalRisk / item.count) : 0;
+      var barW     = Math.round(item.count / maxCount * 100);
+      var pct      = ((item.count / totalEvents) * 100).toFixed(1);
+
+      /* Mini level breakdown bars */
+      var levelBars = CATS.map(function(c) {
+        var w = Math.round((item.levels[c] || 0) / item.count * 50);
+        return w > 0
+          ? '<div style="height:5px;width:'+w+'px;background:'+SEV_COLOR[c]+';border-radius:1px;display:inline-block;margin-right:1px"></div>'
+          : '';
+      }).join('');
+
+      var tr = document.createElement('tr');
+      tr.innerHTML =
+        '<td><span style="font-family:Consolas,monospace;font-size:11px;font-weight:600;color:'+(item.code==='NonSPI'?'#8a97a8':'#1a56db')+'">'+item.code+'</span></td>' +
+        '<td style="font-size:11px;color:#4a5a6a;max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="'+title+'">'+title+'</td>' +
+        '<td><span style="font-size:10px;font-weight:600;padding:2px 6px;border-radius:4px;background:#f0f2f5;color:#4a5a6a">'+cls+'</span></td>' +
+        '<td>' +
+          '<div style="display:flex;align-items:center;gap:7px">' +
+            '<div style="flex:1;background:#e9ecf0;border-radius:2px;height:5px;min-width:50px">' +
+              '<div style="width:'+barW+'%;height:100%;background:#1a56db;border-radius:2px"></div>' +
+            '</div>' +
+            '<span style="font-family:Consolas,monospace;font-size:11px;min-width:28px">'+item.count+'</span>' +
+            '<span style="font-size:10px;color:#8a97a8">'+pct+'%</span>' +
+          '</div>' +
+        '</td>' +
+        '<td style="font-family:Consolas,monospace;font-size:11px;color:#4a5a6a">'+avgRisk.toFixed(2)+'</td>' +
+        '<td><div style="display:flex;gap:1px;align-items:center">'+levelBars+'</div></td>';
+      tbody.appendChild(tr);
+    });
+  }
+
+
+  /* ── RENDER SPI TABLE ───────────────────────────────────────── */
+  function renderSPITable(tbodyId, rows, spiMap) {
+    var tbody = document.getElementById(tbodyId);
+    if (!tbody) return;
+    var spiAgg = {};
+    rows.forEach(function(r) {
+      var tags = r.spiTags && r.spiTags.length ? r.spiTags : ['NonSPI'];
+      tags.forEach(function(tag) {
+        if (!spiAgg[tag]) spiAgg[tag] = { code:tag, count:0, totalRisk:0, levels:{A:0,B:0,C:0,D:0,E:0} };
+        spiAgg[tag].count++;
+        spiAgg[tag].totalRisk += r.riskScore||0;
+        if (spiAgg[tag].levels[r.riskLevel]!=null) spiAgg[tag].levels[r.riskLevel]++;
+      });
+    });
+    var total = rows.length||1;
+    var items = Object.values(spiAgg).sort(function(a,b){return b.totalRisk-a.totalRisk;});
+    if (!items.length) { tbody.innerHTML='<tr><td colspan="5" style="text-align:center;padding:20px;color:#5a7290">No SPI data</td></tr>'; return; }
+    var maxC = Math.max.apply(null,items.map(function(i){return i.count;}))||1;
+    var CATS=['A','B','C','D','E'];
+    tbody.innerHTML='';
+    items.forEach(function(item){
+      var info=spiMap[item.code]||{};
+      var title=info.title||(item.code==='NonSPI'?'Non-SPI Event':item.code);
+      var cls=info.cls||'—';
+      var avg=item.count?(item.totalRisk/item.count):0;
+      var bw=Math.round(item.count/maxC*100);
+      var pct=((item.count/total)*100).toFixed(1);
+      var bars=CATS.map(function(c){
+        var w=Math.round((item.levels[c]||0)/item.count*50);
+        return w>0?'<div style="height:5px;width:'+w+'px;background:'+SEV_COLOR[c]+';border-radius:1px;display:inline-block;margin-right:1px"></div>':'';
+      }).join('');
+      var tr=document.createElement('tr');
+      tr.innerHTML=
+        '<td><span style="font-family:Consolas,monospace;font-size:11px;font-weight:700;color:'+(item.code==='NonSPI'?'#5a7290':'#60a5fa')+'">'+item.code+'</span></td>'+
+        '<td style="font-size:11px;color:#94a8c4;max-width:160px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="'+title+'">'+title+'</td>'+
+        '<td><span style="font-size:10px;font-weight:600;padding:2px 7px;border-radius:4px;background:rgba(255,255,255,.06);color:#94a8c4">'+cls+'</span></td>'+
+        '<td><div style="display:flex;align-items:center;gap:7px">'+
+          '<div style="flex:1;background:rgba(255,255,255,.06);border-radius:2px;height:5px;min-width:50px">'+
+            '<div style="width:'+bw+'%;height:100%;background:#3b82f6;border-radius:2px"></div>'+
+          '</div>'+
+          '<span style="font-family:Consolas,monospace;font-size:11px;color:#e8edf5;min-width:28px">'+item.count+'</span>'+
+          '<span style="font-size:10px;color:#5a7290">'+pct+'%</span>'+
+        '</div></td>'+
+        '<td style="font-family:Consolas,monospace;font-size:11px;color:#94a8c4">'+avg.toFixed(2)+'</td>'+
+        '<td><div style="display:flex;gap:1px">'+bars+'</div></td>';
+      tbody.appendChild(tr);
+    });
+  }
+
+  /* ── RENDER ALL STATIONS PAGE ────────────────────────────────── */
+  function renderAllStations(container, stations, search, sevFilter, sortKey, sortDir) {
+    search    = (search||'').toLowerCase();
+    sevFilter = sevFilter||'all';
+    sortKey   = sortKey||'composite';
+    sortDir   = sortDir||'desc';
+
+    var data = stations.slice();
+    if (sevFilter!=='all') data=data.filter(function(s){return s.compLevel===sevFilter;});
+    if (search) data=data.filter(function(s){
+      return s.loc.toLowerCase().includes(search);
+    });
+
+    data.sort(function(a,b){
+      var va,vb;
+      if(sortKey==='loc'){va=a.loc;vb=b.loc;return sortDir==='asc'?va.localeCompare(vb):vb.localeCompare(va);}
+      if(sortKey==='events'){va=a.count;vb=b.count;}
+      else if(sortKey==='flights'){va=a.flights;vb=b.flights;}
+      else if(sortKey==='level'){va='ABCDE'.indexOf(a.compLevel);vb='ABCDE'.indexOf(b.compLevel);}
+      else{va=a.composite;vb=b.composite;}
+      return sortDir==='asc'?va-vb:vb-va;
+    });
+
+    var countEl=document.getElementById('srd-allst-count');
+    if(countEl) countEl.textContent=data.length+' stations';
+
+    if(!container) return;
+    if(!data.length){container.innerHTML='<tr><td colspan="6" style="text-align:center;padding:30px;color:#5a7290">No stations found</td></tr>';return;}
+
+    var maxC=Math.max.apply(null,data.map(function(s){return s.composite;}))||1;
+    var CATS=['A','B','C','D','E'];
+    container.innerHTML='';
+    data.forEach(function(s,i){
+      var fw=Math.round(s.composite/maxC*100);
+      var tc=CATS.reduce(function(sum,c){return sum+(s.catCounts[c]||0);},0)||1;
+      var bars=CATS.map(function(c){
+        var w=Math.round((s.catCounts[c]||0)/tc*48);
+        return w>0?'<div class="srd-profile-bar" style="width:'+w+'px;background:'+SEV_COLOR[c]+'"></div>':'';
+      }).join('');
+      var tr=document.createElement('tr');
+      tr.innerHTML=
+        '<td><span class="srd-iata">'+s.loc+'</span></td>'+
+        '<td class="srd-num">'+s.count+'</td>'+
+        '<td><div class="srd-score-wrap">'+
+          '<div class="srd-score-bg"><div class="srd-score-fill" style="width:'+fw+'%;background:'+SEV_COLOR[s.compLevel]+'"></div></div>'+
+          '<span class="srd-num" style="min-width:36px;font-size:11px">'+s.composite.toFixed(2)+'</span>'+
+        '</div></td>'+
+        '<td class="srd-num">'+fmtInt(s.flights)+'</td>'+
+        '<td><span class="srd-badge '+s.compLevel.toLowerCase()+'">'+s.compLevel+'</span></td>'+
+        '<td><div class="srd-profile-bars">'+bars+'</div></td>';
+      container.appendChild(tr);
+    });
+  }
+
+  /* ── LAYOUT BUILDER ──────────────────────────────────────────── */
+  function buildLayout(root) {
+    /* ── SIDEBAR ── */
+    var IC_shield = '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>';
+    var IC_grid   = '<rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/>';
+    var IC_table  = '<path d="M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2v-4M9 21H5a2 2 0 01-2-2v-4m0 0h18"/>';
+    var IC_mail   = '<path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/>';
+
+    function mkIcon(path,size){ var s=document.createElementNS('http://www.w3.org/2000/svg','svg'); s.setAttribute('viewBox','0 0 24 24'); s.setAttribute('width',size||16); s.setAttribute('height',size||16); s.setAttribute('fill','none'); s.setAttribute('stroke','currentColor'); s.setAttribute('stroke-width','2'); s.setAttribute('stroke-linecap','round'); s.setAttribute('stroke-linejoin','round'); s.innerHTML=path; return s; }
+
+    var sidebar = el('div',{class:'srd-sidebar'},[
+      el('div',{class:'srd-sb-logo'},[
+        el('div',{class:'srd-sb-logo-icon'},[mkIcon(IC_shield,16)]),
+        el('div',{},[
+          el('div',{class:'srd-sb-logo-title'},'Safety Risk'),
+          el('div',{class:'srd-sb-logo-sub'},'Dashboard'),
+        ])
+      ]),
+      el('div',{class:'srd-sb-section'},'Dashboard'),
+      el('div',{class:'srd-sb-item active',id:'sb-overview'},[mkIcon(IC_grid,15),document.createTextNode('Overview')]),
+      el('div',{class:'srd-sb-item',id:'sb-allstations'},[mkIcon(IC_table,15),document.createTextNode('All Stations')]),
+      el('div',{class:'srd-sb-spacer'}),
+      el('div',{class:'srd-sb-contact'},[
+        el('div',{class:'srd-sb-contact-label'},'Contact'),
+        el('a',{class:'srd-sb-contact-email',href:'mailto:safety@thy.com'},[
+          mkIcon(IC_mail,13),
+          document.createTextNode('safety@thy.com')
+        ])
+      ])
+    ]);
+
+    /* Sidebar click handlers */
+    sidebar.querySelector('#sb-overview').onclick = function(){
+      showPage('overview');
+      sidebar.querySelectorAll('.srd-sb-item').forEach(function(i){i.classList.remove('active');});
+      this.classList.add('active');
+    };
+    sidebar.querySelector('#sb-allstations').onclick = function(){
+      showPage('allstations');
+      sidebar.querySelectorAll('.srd-sb-item').forEach(function(i){i.classList.remove('active');});
+      this.classList.add('active');
+    };
+
+    /* ── CONTENT ── */
+    var content = el('div',{class:'srd-content'});
+
+    /* Topbar */
+    var topbar = el('div',{class:'srd-topbar'},[
+      el('div',{class:'srd-topbar-left'},[
+        document.createTextNode('Safety Risk Dashboard'),
+        el('span',{class:'srd-topbar-badge',id:'srd-station-badge'},'— Stations')
+      ]),
+      el('span',{class:'srd-topbar-right',id:'srd-lastupdate'},'')
+    ]);
+
+    /* Filter bar */
+    var filterbar = el('div',{class:'srd-filterbar',id:'srd-filterbar'},[
+      el('div',{class:'srd-filter-label'},[mkIcon('<polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>',13),document.createTextNode('Filter')])
+    ]);
+
+    /* Main area */
+    var mainArea = el('div',{class:'srd-main'});
+
+    /* ── OVERVIEW PAGE ── */
+    var overviewPage = el('div',{class:'srd-page active',id:'page-overview'});
+
+    /* KPI */
+    var kpiGrid = el('div',{class:'srd-kpi-grid',id:'srd-kpi-grid'});
+
+    /* Charts */
+    var barCard = el('div',{class:'srd-card'},[
+      el('div',{class:'srd-card-header'},[el('div',{},[el('div',{class:'srd-card-title'},[el('span',{class:'srd-card-dot',style:'background:#e08c3a'}),document.createTextNode('Top 10 Highest Risk Stations')]),el('div',{class:'srd-card-sub'},'Composite = (Σ RiskScore / Flights) × 100')])]),
+      el('div',{class:'srd-card-body'},[el('div',{class:'srd-chart-wrap'},el('canvas',{id:'srd-bar'}))])
+    ]);
+
+    var dtabs = el('div',{class:'srd-dtabs'});
+    [['sev','Risk Level'],['spi','SPI Class'],['fleet','Fleet'],['dept','Department']].forEach(function(p){
+      var btn=el('button',{class:'srd-dtab'+(p[0]==='sev'?' active':'')},p[1]);
+      btn.onclick=function(){
+        dtabs.querySelectorAll('.srd-dtab').forEach(function(b){b.classList.remove('active');});
+        btn.classList.add('active');
+        if(W._srdSets) renderDonut('srd-donut','srd-donut-leg',p[0],W._srdSets);
+      };
+      dtabs.appendChild(btn);
+    });
+
+    var donutCard = el('div',{class:'srd-card'},[
+      el('div',{class:'srd-card-header'},[el('div',{},[el('div',{class:'srd-card-title'},[el('span',{class:'srd-card-dot',style:'background:#3b82f6'}),document.createTextNode('Risk Distribution')]),el('div',{class:'srd-card-sub'},'Level · SPI · Fleet · Department')])]),
+      el('div',{class:'srd-card-body'},[dtabs,el('div',{class:'srd-donut-wrap'},[el('div',{class:'srd-donut-canvas'},el('canvas',{id:'srd-donut'})),el('div',{class:'srd-donut-legend',id:'srd-donut-leg'})])])
+    ]);
+
+    var lineCard = el('div',{class:'srd-card'},[
+      el('div',{class:'srd-card-header'},[el('div',{},[el('div',{class:'srd-card-title'},[el('span',{class:'srd-card-dot',style:'background:#3b82f6'}),document.createTextNode('Monthly Event Trend')]),el('div',{class:'srd-card-sub'},'Based on MC_Year_Month')])]),
+      el('div',{class:'srd-card-body'},[el('div',{class:'srd-chart-wrap'},el('canvas',{id:'srd-line'}))])
+    ]);
+
+    var chartsRow = el('div',{class:'srd-charts-row'},[barCard,donutCard,lineCard]);
+
+    /* SPI Summary */
+    var spiCard = el('div',{class:'srd-card'},[
+      el('div',{class:'srd-card-header'},[el('div',{},[el('div',{class:'srd-card-title'},[el('span',{class:'srd-card-dot',style:'background:#3b82f6'}),document.createTextNode('SPI Category Summary')]),el('div',{class:'srd-card-sub'},'Event count & average risk score by SPI class')])]),
+      el('div',{class:'srd-tbl-wrap'},[el('table',{},[
+        el('thead',{},[el('tr',{},[el('th',{},'SPI Code'),el('th',{},'Title'),el('th',{},'Class'),el('th',{},'Events'),el('th',{},'Avg Risk'),el('th',{},'Distribution')])]),
+        el('tbody',{id:'srd-spi-tbody'})
+      ])])
+    ]);
+
+    overviewPage.appendChild(kpiGrid);
+    overviewPage.appendChild(chartsRow);
+    overviewPage.appendChild(spiCard);
+
+    /* ── ALL STATIONS PAGE ── */
+    var allStPage = el('div',{class:'srd-page',id:'page-allstations'});
+
+    var stSevBtns = el('div',{class:'srd-sev-btns'});
+    [['all','All'],['A','A'],['B','B'],['C','C'],['D','D'],['E','E']].forEach(function(p){
+      var btn=el('button',{class:'srd-sev-btn'+(p[0]==='all'?' on-all':'')},p[1]);
+      btn.onclick=function(){
+        stSevBtns.querySelectorAll('.srd-sev-btn').forEach(function(b){b.className='srd-sev-btn';});
+        btn.className='srd-sev-btn on-'+p[0];
+        W._srdAllStSev=p[0];
+        refreshAllSt();
+      };
+      stSevBtns.appendChild(btn);
+    });
+
+    var stSearch = el('input',{class:'srd-allst-search',type:'text',placeholder:'Search IATA...'});
+    stSearch.oninput = function(){ W._srdAllStSearch=this.value; refreshAllSt(); };
+
+    var stHeader = el('div',{class:'srd-allst-header'},[
+      el('div',{},[
+        el('div',{class:'srd-allst-title'},'All Stations'),
+        el('div',{id:'srd-allst-count',style:'font-size:11px;color:#5a7290;font-family:Consolas,monospace;margin-top:3px'},'')
+      ]),
+      el('div',{class:'srd-allst-controls'},[stSearch,stSevBtns])
+    ]);
+
+    var stTbody = el('tbody',{id:'srd-allst-tbody'});
+    var stTable = el('div',{class:'srd-allst-table-wrap'},[
+      el('div',{class:'srd-allst-table-scroll'},[
+        el('table',{class:'srd-allst-table'},[
+          el('thead',{},[el('tr',{},[
+            mkTh('LOC','loc'),mkTh('Events','events'),
+            mkTh('Composite','composite'),mkTh('Flights','flights'),
+            mkTh('Level','level'),el('th',{},'Distribution')
+          ])]),
+          stTbody
+        ])
+      ])
+    ]);
+
+    allStPage.appendChild(stHeader);
+    allStPage.appendChild(stTable);
+
+    mainArea.appendChild(overviewPage);
+    mainArea.appendChild(allStPage);
+    content.appendChild(topbar);
+    content.appendChild(filterbar);
+    content.appendChild(mainArea);
+    root.appendChild(sidebar);
+    root.appendChild(content);
+
+    /* Sort state */
+    W._srdAllStSort    = 'composite';
+    W._srdAllStSortDir = 'desc';
+    W._srdAllStSev     = 'all';
+    W._srdAllStSearch  = '';
+  }
+
+  function mkTh(label, key) {
+    var th = document.createElement('th');
+    th.textContent = label;
+    th.onclick = function(){
+      if(W._srdAllStSort===key){ W._srdAllStSortDir = W._srdAllStSortDir==='desc'?'asc':'desc'; }
+      else { W._srdAllStSort=key; W._srdAllStSortDir='desc'; }
+      document.querySelectorAll('.srd-allst-table thead th').forEach(function(t){t.className='';});
+      this.className='sort-'+W._srdAllStSortDir;
+      refreshAllSt();
+    };
+    return th;
+  }
+
+  function refreshAllSt() {
+    if(!W._srdData) return;
+    renderAllStations(
+      document.getElementById('srd-allst-tbody'),
+      W._srdData.stations,
+      W._srdAllStSearch, W._srdAllStSev,
+      W._srdAllStSort, W._srdAllStSortDir
+    );
+  }
+
+  function showPage(name) {
+    document.getElementById('page-overview').classList.remove('active');
+    document.getElementById('page-allstations').classList.remove('active');
+    document.getElementById('page-'+name).classList.add('active');
+  }
+
+  /* ── FİLTRE UYGULA ───────────────────────────────────────────── */
+  function applyFilters(allRows, allStations) {
+    var year   = (document.getElementById('srd-f-year')   ||{}).value||'';
+    var month  = (document.getElementById('srd-f-month')  ||{}).value||'';
+    var dept   = (document.getElementById('srd-f-dept')   ||{}).value||'';
+    var fleet  = (document.getElementById('srd-f-fleet')  ||{}).value||'';
+    var rtype  = (document.getElementById('srd-f-rtype')  ||{}).value||'';
+    var bolge  = (document.getElementById('srd-f-bolge')  ||{}).value||'';
+    var sev    = (document.getElementById('srd-f-sev')    ||{}).value||'';
+    var status = (document.getElementById('srd-f-status') ||{}).value||'';
+    var spi    = (document.getElementById('srd-f-spi')    ||{}).value||'';
+
+    var rows = allRows.filter(function(r){
+      if(year   && r.year    !== year)   return false;
+      if(month  && r.yearMonth !== month) return false;
+      if(dept   && r.dept    !== dept)   return false;
+      if(fleet  && r.fleet   !== fleet)  return false;
+      if(rtype  && r.repType !== rtype)  return false;
+      if(bolge  && r.region   !== bolge)  return false;
+      if(sev    && r.riskLevel !== sev)  return false;
+      if(status && r.status  !== status) return false;
+      if(spi    && !r.spiTags.includes(spi)) return false;
+      return true;
+    });
+
+    /* Station listesi de filtreden geçmiş eventslardan yeniden hesapla */
+    var stMap = {};
+    rows.forEach(function(r){
+      if(!stMap[r.loc]) stMap[r.loc]={ loc:r.loc, incidents:[] };
+      stMap[r.loc].incidents.push(r);
+    });
+    var stations = Object.values(stMap).map(function(st){
+      var incs=st.incidents;
+      var totalRisk=incs.reduce(function(s,i){return s+i.riskScore;},0);
+      var flights=allStations.find(function(s){return s.loc===st.loc;});
+      flights = flights ? flights.flights : 0;
+      var composite = flights>0 ? totalRisk/flights*100 : (incs.length ? totalRisk/incs.length : 0);
+      var catCounts={A:0,B:0,C:0,D:0,E:0};
+      incs.forEach(function(i){if(catCounts[i.riskLevel]!=null)catCounts[i.riskLevel]++;});
+      return { loc:st.loc, incidents:incs, count:incs.length, totalRisk:totalRisk,
+               flights:flights, composite:composite, compLevel:MATRIX.category(composite),
+               catCounts:catCounts, highSev:(catCounts.A||0)+(catCounts.B||0) };
+    });
+    stations.sort(function(a,b){return b.composite-a.composite;});
+    return { rows:rows, stations:stations };
+  }
+
+  /* ── UTILITY ─────────────────────────────────────────────────── */
+  function uniq(arr) {
+    var seen={}, out=[];
+    arr.forEach(function(v){ if(!seen[v]){seen[v]=1;out.push(v);} });
+    return out;
+  }
+
+  /* ── INIT ────────────────────────────────────────────────────── */
+  function init(config) {
+    config = config || {};
+    var incPath  = config.incidentsCsv  || 'data/All_Station_Info.csv';
+    var fltPath  = config.stationsCsv   || 'data/Ucus_sayilari.csv';
+    var spiPath  = config.spiCsv        || 'data/SPI_kategorileri.csv';
+    var rootId   = config.rootId        || 'srd-root';
+
+    var root = document.getElementById(rootId);
+    if (!root){ console.error('SRD: #'+rootId+' not found'); return; }
+    root.innerHTML = '';
+
+    /* Chart.js yükle */
+    function loadChartJS(cb){
+      if(W.Chart){ cb(); return; }
+      var s=document.createElement('script');
+      s.src='https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js';
+      s.onload=cb; document.head.appendChild(s);
+    }
+
+    loadChartJS(function(){
+      Promise.all([loadCSV(incPath), loadCSV(fltPath), loadCSV(spiPath)])
+        .then(function(results){
+          var incidents=results[0], flightRows=results[1], spiRows=results[2];
+          var processed = processData(incidents, flightRows, spiRows);
+          W._srdAllRows     = processed.rows;
+          W._srdAllStations = processed.stations;
+          W._srdData        = processed;
+          W._srdStSev       = 'all';
+          W._srdIncSev      = 'all';
+
+          /* Update topbar badge */
+          var badge = document.getElementById('srd-station-badge');
+          if(badge) badge.textContent = processed.stations.length+' Stations';
+          var lu = document.getElementById('srd-lastupdate');
+          if(lu) lu.textContent = 'Last updated: '+new Date().toLocaleString('tr-TR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
+
+          /* Build filter bar */
+          renderFilterBar(document.getElementById('srd-filterbar'), processed.rows, processed.spiMap, function(){
+            var f = applyFilters(W._srdAllRows, W._srdAllStations);
+            W._srdData.rows     = f.rows;
+            W._srdData.stations = f.stations;
+            var kpis = calcKPIs(f.rows, f.stations);
+            renderKPIs(document.getElementById('srd-kpi-grid'), kpis);
+            renderBarChart('srd-bar', f.stations);
+            W._srdSets = buildDonutSets(f.rows, processed.spiMap);
+            renderDonut('srd-donut','srd-donut-leg','sev',W._srdSets);
+            renderLineChart('srd-line', f.rows);
+            renderAllStations(document.getElementById('srd-allst-tbody'), f.stations, W._srdAllStSearch||'', W._srdAllStSev||'all', W._srdAllStSort||'composite', W._srdAllStSortDir||'desc');
+            renderSPITable('srd-spi-tbody', f.rows, processed.spiMap);
+          });
+          buildLayout(root);
+
+          var kpis = calcKPIs(processed.rows, processed.stations);
+          renderKPIs(document.getElementById('srd-kpi-grid'), kpis);
+          var badge = document.getElementById('srd-station-badge');
+          if(badge) badge.textContent = processed.stations.length+' Stations';
+          var lu = document.getElementById('srd-lastupdate');
+          if(lu) lu.textContent = 'Last updated: '+new Date().toLocaleString('tr-TR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
+          renderBarChart('srd-bar', processed.stations);
+          W._srdSets = buildDonutSets(processed.rows, processed.spiMap);
+          renderDonut('srd-donut','srd-donut-leg','sev',W._srdSets);
+          renderLineChart('srd-line', processed.rows);
+          renderAllStations(document.getElementById('srd-allst-tbody'), processed.stations, '', 'all', 'composite', 'desc');
+          renderSPITable('srd-spi-tbody', processed.rows, processed.spiMap);
+                })
+        .catch(function(err){
+          root.innerHTML='<div style="padding:40px;color:#b03a2e;font-family:sans-serif">'+
+            '<strong>Error:</strong> '+err.message+'<br><br>'+
+            'Please ensure CSV files are in the correct location.</div>';
+        });
+    });
+  }
+
+  W.SRD = { init: init };
+
+})(window);
+<\/script><script>SRD.init({incidentsCsv:'https://portal.thy.com/sites/ground-ops/foreign-stations/ground-operation/DashboardFiles/All_Station_Info.csv',stationsCsv:'https://portal.thy.com/sites/ground-ops/foreign-stations/ground-operation/DashboardFiles/Ucus_sayilari.csv',spiCsv:'https://portal.thy.com/sites/ground-ops/foreign-stations/ground-operation/DashboardFiles/SPI_kategorileri.csv',rootId:'srd-root'});<\/script></body></html>`);
+  d.close();
+  function resize(){try{var h=f.contentDocument.body.scrollHeight;if(h>200)f.style.height=h+'px';}catch(e){}}
+  f.onload=function(){resize();setInterval(resize,800);};
+})();
+</script>
