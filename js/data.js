@@ -31,10 +31,14 @@
    - TXF, BER and SXF are treated as the same station.
    - Canonical code shown in dashboard: SXF
 
+   Excluded stations:
+   - HYD and MAA are ignored as station codes.
+   - Their records are NOT deleted, but they do not enter station-based calculations.
+
    Important:
-   - Fake/empty Loc records are NOT deleted.
-   - Fake/empty Loc records are included in KPIs, filters, SPI, trend.
-   - Fake/empty Loc records are skipped only in station-based calculations.
+   - Fake/empty/excluded Loc records are NOT deleted.
+   - Fake/empty/excluded Loc records are included in KPIs, filters, SPI, trend.
+   - Fake/empty/excluded Loc records are skipped only in station-based calculations.
    ================================================================ */
 
 var SRD = SRD || {};
@@ -277,6 +281,15 @@ SRD.DATA = (function () {
     BER: 'SXF'
   };
 
+  /*
+    Bu listedeki istasyonlar station hesabına alınmaz.
+    Kayıt silinmez; loc boş döner.
+  */
+  var EXCLUDED_STATIONS = {
+    HYD: true,
+    MAA: true
+  };
+
   function cleanStation(value) {
     /*
       Station/IATA must be a 3-letter alphabetic code.
@@ -285,6 +298,9 @@ SRD.DATA = (function () {
       Alias mapping:
       SXF, TXF and BER are treated as the same station.
       Canonical output: SXF
+
+      Excluded stations:
+      HYD and MAA return empty loc.
     */
     var raw = str(value).toUpperCase();
 
@@ -295,7 +311,11 @@ SRD.DATA = (function () {
     if (raw.length !== 3) return '';
 
     if (STATION_ALIASES[raw]) {
-      return STATION_ALIASES[raw];
+      raw = STATION_ALIASES[raw];
+    }
+
+    if (EXCLUDED_STATIONS[raw]) {
+      return '';
     }
 
     return raw;
@@ -701,7 +721,7 @@ SRD.DATA = (function () {
     /*
       IMPORTANT:
       Do NOT filter out records with empty loc.
-      Empty/fake Loc records are included in:
+      Empty/fake/excluded Loc records are included in:
       - total recorded events
       - year/month filters
       - region filters
