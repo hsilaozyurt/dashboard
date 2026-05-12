@@ -27,6 +27,10 @@
    - Normalized Risk = (Σ RiskScore / Flights) × 10,000
    - If Flights = 0, Normalized Risk = 0
 
+   Station aliases:
+   - TXF, BER and SXF are treated as the same station.
+   - Canonical code shown in dashboard: SXF
+
    Important:
    - Fake/empty Loc records are NOT deleted.
    - Fake/empty Loc records are included in KPIs, filters, SPI, trend.
@@ -244,15 +248,19 @@ SRD.DATA = (function () {
     }
 
     /*
-      Virgüllü ondalık / binlik ihtimalleri:
-      1888,0      -> 1888
-      1,888       -> 1888 olabilir; uçuş sayısı integer kabul ediyoruz.
+      Virgüllü binlik ihtimali:
+      1,888       -> 1888
+      12,345      -> 12345
     */
     if (/^\d{1,3}(,\d{3})+$/.test(v)) {
       v = v.replace(/,/g, '');
       return parseInt(v, 10) || 0;
     }
 
+    /*
+      Virgüllü ondalık ihtimali:
+      1888,0      -> 1888
+    */
     if (v.indexOf(',') >= 0 && v.indexOf('.') < 0) {
       v = v.replace(',', '.');
     }
@@ -264,10 +272,19 @@ SRD.DATA = (function () {
 
   /* ── STATION / LOC ──────────────────────────────────────────── */
 
+  var STATION_ALIASES = {
+    TXF: 'SXF',
+    BER: 'SXF'
+  };
+
   function cleanStation(value) {
     /*
       Station/IATA must be a 3-letter alphabetic code.
       Fake values like 2026, 32, 1BLGE, 3E become empty string.
+
+      Alias mapping:
+      SXF, TXF and BER are treated as the same station.
+      Canonical output: SXF
     */
     var raw = str(value).toUpperCase();
 
@@ -275,7 +292,13 @@ SRD.DATA = (function () {
 
     raw = raw.replace(/[^A-Z]/g, '');
 
-    return raw.length === 3 ? raw : '';
+    if (raw.length !== 3) return '';
+
+    if (STATION_ALIASES[raw]) {
+      return STATION_ALIASES[raw];
+    }
+
+    return raw;
   }
 
   function getIncidentLoc(row) {
