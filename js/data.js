@@ -18,9 +18,10 @@
    - SPI title         -> Title
    - SPI class         -> SPI_Class
 
-   Flight Excel:
-   - Station           -> Loc
-   - Flight count      -> Uçuş Sayısı / 2nd column fallback
+   Flight Excel new format:
+   - Month/Year        -> Ay Yıl
+   - Station           -> Location
+   - Flight count      -> Uçuş Sayısı
 
    Important:
    - Fake/empty Loc records are NOT deleted.
@@ -226,8 +227,7 @@ SRD.DATA = (function () {
 
   function cleanStation(value) {
     /*
-      Station/IATA must come only from Loc.
-      We accept only 3-letter alphabetic station codes.
+      Station/IATA must be a 3-letter alphabetic code.
       Fake values like 2026, 32, 1BLGE, 3E become empty string.
     */
     var raw = str(value).toUpperCase();
@@ -249,20 +249,38 @@ SRD.DATA = (function () {
 
   function getFlightLoc(row) {
     /*
-      Flight Excel station comes from Loc.
-      If header is unexpected, use first column fallback.
+      Flight Excel new format:
+      0: Ay Yıl
+      1: Location
+      2: Uçuş Sayısı
+
+      Flight station/IATA comes from Location.
+      If header is unexpected, use 2nd column fallback.
     */
     return cleanStation(
-      pick(row, ['Loc', 'LOC', 'loc', 'IATA', 'Station', 'Airport']) ||
-      byIndex(row, 0)
+      pick(row, [
+        'Location',
+        'location',
+        'LOCATION',
+        'Loc',
+        'LOC',
+        'loc',
+        'IATA',
+        'Station',
+        'Airport'
+      ]) || byIndex(row, 1)
     );
   }
 
   function getFlightCount(row) {
     /*
-      Flight Excel:
-      Loc + Uçuş Sayısı.
-      If header is unexpected, use 2nd column fallback.
+      Flight Excel new format:
+      0: Ay Yıl
+      1: Location
+      2: Uçuş Sayısı
+
+      Flight count comes from Uçuş Sayısı.
+      If header is unexpected, use 3rd column fallback.
     */
     var v = pick(row, [
       'Uçuş Sayısı',
@@ -279,7 +297,7 @@ SRD.DATA = (function () {
       'Sayı',
       'Sayi',
       'Adet'
-    ]) || byIndex(row, 1);
+    ]) || byIndex(row, 2);
 
     return parseNumber(v);
   }
