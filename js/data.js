@@ -4,7 +4,8 @@
    - Robust CSV parser for comma / semicolon files
    - Handles quoted multiline CSV records
    - Uses Loc as station code
-   - Filters fake station values such as 2026, 32, 1BLGE
+   - Fake Loc values become empty loc, but records are NOT removed
+   - Station calculations skip empty/fake loc records
    - Region filter only uses Bölge / Bolge / Region fields
    - Incident SPI relation uses only SPI_1 and SPI_2
    - SPI names/classes come from SPI_kategorileri.csv
@@ -175,7 +176,47 @@ SRD.DATA = (function () {
   }
 
   function normalizeSpiCode(value) {
-    return String(value || '').trim();
+    var raw = String(value || '').trim();
+
+    if (!raw) return '';
+
+    raw = raw.replace(',', '.');
+
+    /*
+      Examples:
+      "6.7"
+      "6,7"
+      "6.7 - Improper Loading"
+      "SPI 6.7"
+    */
+    var match = raw.match(/[0-9]+(?:\.[0-9]+)?/);
+
+    return match ? match[0] : raw;
+  }
+
+  function extractSpiTags(value, spiMap) {
+    var raw = String(value || '').trim();
+
+    if (!raw) return [];
+
+    raw = raw.replace(/,/g, '.');
+
+    var matches = raw.match(/[0-9]+(?:\.[0-9]+)?/g) || [];
+    var tags = [];
+
+    matches.forEach(function (code) {
+      if (spiMap[code] && tags.indexOf(code) < 0) {
+        tags.push(code);
+      }
+    });
+
+    var direct = normalizeSpiCode(raw);
+
+    if (direct && spiMap[direct] && tags.indexOf(direct) < 0) {
+      tags.push(direct);
+    }
+
+    return tags;
   }
 
   function parseNumber(value) {
@@ -221,7 +262,7 @@ SRD.DATA = (function () {
     raw = raw.replace(/[^A-Z0-9]/g, '');
 
     /*
-      Real station/IATA-like values are usually 3 letters.
+      Real station/IATA-like values are generally 3+ characters.
       2-character values like 3E are rejected to prevent false stations.
     */
     if (raw.length < 3 || raw.length > 5) return '';
@@ -257,7 +298,13 @@ SRD.DATA = (function () {
     return '';
   }
 
-  function getIncidentLoc(row, validLocs) {
+  function getIncidentLoc(row) {
+    /*
+      IMPORTANT:
+      We do NOT require loc to exist in flight CSV.
+      Flight CSV is only for flight counts.
+      If Loc is fake, return empty string but keep the record.
+    */
     var candidates = [
       pick(row, ['Loc', 'LOC', 'loc']),
       pick(row, ['IATA', 'IATA_Code', 'IATA Code', 'Station', 'Station_Code', 'Station Code']),
@@ -269,17 +316,7 @@ SRD.DATA = (function () {
     for (var i = 0; i < candidates.length; i++) {
       var loc = cleanStationCode(candidates[i]);
 
-      if (!loc) continue;
-
-      /*
-        If validLocs exists, accept only stations from flight CSV.
-        This blocks fake values such as 2026, 32, 1BLGE.
-      */
-      if (validLocs && Object.keys(validLocs).length > 0) {
-        if (validLocs[loc]) return loc;
-      } else {
-        return loc;
-      }
+      if (loc) return loc;
     }
 
     return '';
@@ -480,7 +517,7 @@ SRD.DATA = (function () {
     flightRows = flightRows || [];
     spiRows    = spiRows || [];
 
-    /* ── FLIGHT MAP / VALID STATIONS ──────────────────────────── */
+    /* ── FLIGHT MAP ───────────────────────────────────────────── */
 
     var flightMap = {};
 
@@ -491,12 +528,6 @@ SRD.DATA = (function () {
       if (!loc) return;
 
       flightMap[loc] = (flightMap[loc] || 0) + cnt;
-    });
-
-    var validLocs = {};
-
-    Object.keys(flightMap).forEach(function (loc) {
-      if (loc) validLocs[loc] = true;
     });
 
     /* ── SPI MAP ──────────────────────────────────────────────── */
@@ -536,15 +567,13 @@ SRD.DATA = (function () {
 
     /* ── NORMALIZE INCIDENTS ──────────────────────────────────── */
 
-    var rejectedLocSamples = {};
+    var fakeLocSamples = {};
     var rows = incidents.map(function (r) {
-      var loc = getIncidentLoc(r, validLocs);
+      var rawLoc = pick(r, ['Loc', 'LOC', 'loc', 'Location']);
+      var loc = getIncidentLoc(r);
 
-      if (!loc) {
-        var rawLoc = pick(r, ['Loc', 'LOC', 'loc', 'Location']);
-        if (rawLoc && Object.keys(rejectedLocSamples).length < 20) {
-          rejectedLocSamples[rawLoc] = true;
-        }
+      if (!loc && rawLoc && Object.keys(fakeLocSamples).length < 30) {
+        fakeLocSamples[rawLoc] = true;
       }
 
       var riskScore = parseNumber(pick(r, [
@@ -586,24 +615,28 @@ SRD.DATA = (function () {
         nonSPI === 'evet' ||
         nonSPI === 'nonspi';
 
-      var spi1 = normalizeSpiCode(pick(r, ['SPI_1', 'SPI1', 'SPI 1']));
-      var spi2 = normalizeSpiCode(pick(r, ['SPI_2', 'SPI2', 'SPI 2']));
+      var spiRaw1 = pick(r, ['SPI_1', 'SPI1', 'SPI 1']);
+      var spiRaw2 = pick(r, ['SPI_2', 'SPI2', 'SPI 2']);
 
       var spiTags = [];
 
       /*
         Do NOT use incident CSV's "SPI" column.
         Real incident-SPI relation must come only from SPI_1 and SPI_2.
-        Only SPI codes existing in SPI CSV are accepted.
+        SPI names/classes are always taken from SPI CSV.
       */
       if (!isNonSPI) {
-        if (spi1 && spiMap[spi1] && spiTags.indexOf(spi1) < 0) {
-          spiTags.push(spi1);
-        }
+        extractSpiTags(spiRaw1, spiMap).forEach(function (code) {
+          if (spiTags.indexOf(code) < 0) {
+            spiTags.push(code);
+          }
+        });
 
-        if (spi2 && spiMap[spi2] && spiTags.indexOf(spi2) < 0) {
-          spiTags.push(spi2);
-        }
+        extractSpiTags(spiRaw2, spiMap).forEach(function (code) {
+          if (spiTags.indexOf(code) < 0) {
+            spiTags.push(code);
+          }
+        });
       }
 
       return {
@@ -626,6 +659,7 @@ SRD.DATA = (function () {
         owner: pick(r, ['OccurrenceOwner', 'Owner_1']),
 
         locationRaw: pick(r, ['Location']),
+        rawLoc: rawLoc,
         region: cleanRegion(pick(r, ['Bölge', 'Bolge', 'Region'])),
         subRegion: pick(r, ['Alt Bölge', 'Alt_Bolge', 'Sub Region', 'SubRegion']),
 
@@ -651,15 +685,26 @@ SRD.DATA = (function () {
         opPhase: pick(r, ['Operational_Phase', 'Operational Phase']),
         effectOnFlight: pick(r, ['effect_on_flight', 'Effect_on_flight', 'Effect on flight'])
       };
-    }).filter(function (r) {
-      return !!r.loc;
     });
+
+    /*
+      IMPORTANT:
+      We do NOT filter out rows with empty loc.
+      They must remain in KPIs, year/month/region/SPI filters and trend analysis.
+      They are only skipped in station aggregation below.
+    */
 
     /* ── STATION GROUPING ─────────────────────────────────────── */
 
     var stMap = {};
 
     rows.forEach(function (r) {
+      /*
+        Fake/empty loc records stay in rows,
+        but do not enter station-based calculations.
+      */
+      if (!r.loc) return;
+
       if (!stMap[r.loc]) {
         stMap[r.loc] = {
           loc: r.loc,
@@ -716,11 +761,11 @@ SRD.DATA = (function () {
     });
 
     console.log('[SRD DATA] raw incident rows:', incidents.length);
-    console.log('[SRD DATA] normalized incident rows:', rows.length);
+    console.log('[SRD DATA] normalized rows including empty loc:', rows.length);
     console.log('[SRD DATA] unique occurrences:', countUniqueOccurrences(rows));
+    console.log('[SRD DATA] station rows only:', stations.reduce(function (sum, s) { return sum + s.rowCount; }, 0));
     console.log('[SRD DATA] stations:', stations.length);
-    console.log('[SRD DATA] valid station locs:', Object.keys(validLocs));
-    console.log('[SRD DATA] rejected loc samples:', Object.keys(rejectedLocSamples));
+    console.log('[SRD DATA] fake/empty loc samples:', Object.keys(fakeLocSamples));
     console.log('[SRD DATA] flightMap:', flightMap);
     console.log('[SRD DATA] spiMap:', spiMap);
 
@@ -728,8 +773,7 @@ SRD.DATA = (function () {
       rows: rows,
       stations: stations,
       flightMap: flightMap,
-      spiMap: spiMap,
-      validLocs: validLocs
+      spiMap: spiMap
     };
   }
 
@@ -739,6 +783,10 @@ SRD.DATA = (function () {
     rows = rows || [];
     stations = stations || [];
 
+    /*
+      Total recorded events comes from unique Occurrence_No.
+      Empty/fake loc records are included.
+    */
     var totalInc = countUniqueOccurrences(rows);
 
     var totalFlight = stations.reduce(function (sum, st) {
@@ -786,6 +834,12 @@ SRD.DATA = (function () {
     var stMap = {};
 
     rows.forEach(function (r) {
+      /*
+        Empty/fake loc records remain in filtered rows,
+        but are skipped in station aggregation.
+      */
+      if (!r.loc) return;
+
       if (!stMap[r.loc]) {
         stMap[r.loc] = {
           loc: r.loc,
