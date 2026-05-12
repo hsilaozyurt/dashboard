@@ -227,6 +227,41 @@ SRD.DATA = (function () {
     return parseFloat(v) || 0;
   }
 
+  function parseFlightCount(value) {
+    var v = str(value).replace(/\s/g, '');
+
+    if (!v) return 0;
+
+    /*
+      Türkçe / Excel binlik ayırıcıları:
+      1.888       -> 1888
+      12.345      -> 12345
+      1.234.567   -> 1234567
+    */
+    if (/^\d{1,3}(\.\d{3})+$/.test(v)) {
+      v = v.replace(/\./g, '');
+      return parseInt(v, 10) || 0;
+    }
+
+    /*
+      Virgüllü ondalık / binlik ihtimalleri:
+      1888,0      -> 1888
+      1,888       -> 1888 olabilir; uçuş sayısı integer kabul ediyoruz.
+    */
+    if (/^\d{1,3}(,\d{3})+$/.test(v)) {
+      v = v.replace(/,/g, '');
+      return parseInt(v, 10) || 0;
+    }
+
+    if (v.indexOf(',') >= 0 && v.indexOf('.') < 0) {
+      v = v.replace(',', '.');
+    }
+
+    v = v.replace(/[^0-9.\-]/g, '');
+
+    return Math.round(parseFloat(v) || 0);
+  }
+
   /* ── STATION / LOC ──────────────────────────────────────────── */
 
   function cleanStation(value) {
@@ -303,7 +338,7 @@ SRD.DATA = (function () {
       'Adet'
     ]) || byIndex(row, 2);
 
-    return parseNumber(v);
+    return parseFlightCount(v);
   }
 
   /* ── OCCURRENCE ─────────────────────────────────────────────── */
@@ -678,11 +713,6 @@ SRD.DATA = (function () {
 
       var flights = flightMap[st.loc] || 0;
 
-      /*
-        New station risk logic:
-        Normalized Risk = (Σ RiskScore / Flights) × 10,000
-        If flights = 0, score = 0.
-      */
       var composite = calcNormalizedRisk(totalRisk, flights);
 
       var catCounts = {
@@ -725,7 +755,8 @@ SRD.DATA = (function () {
       '| stationRows:', stations.reduce(function (acc, s) { return acc + s.rowCount; }, 0),
       '| stations:', stations.length,
       '| flightLocs:', Object.keys(flightMap).length,
-      '| spiCodes:', Object.keys(spiMap).length
+      '| spiCodes:', Object.keys(spiMap).length,
+      '| sampleFlights:', flightMap
     );
 
     return {
@@ -809,11 +840,6 @@ SRD.DATA = (function () {
 
       var flights = origSt ? Number(origSt.flights || 0) : 0;
 
-      /*
-        New filtered station risk logic:
-        Normalized Risk = (Σ RiskScore / Flights) × 10,000
-        If flights = 0, score = 0.
-      */
       var composite = calcNormalizedRisk(totalRisk, flights);
 
       var catCounts = {
