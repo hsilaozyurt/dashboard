@@ -1,6 +1,11 @@
 /* ================================================================
    dashboard.js — Dashboard page
-   Bilingual version
+   Bilingual + corrected filter version
+   - Adds station filter
+   - SPI filter displays SPI code + title from SPI CSV
+   - Region filter uses cleaned region values from data.js
+   - Year / Month filters use normalized values from data.js
+   - Works with data.js filters.station
    ================================================================ */
 
 SRD.DASHBOARD = (function () {
@@ -18,6 +23,7 @@ SRD.DASHBOARD = (function () {
         filter: 'Filter',
         allYears: 'All Years',
         allMonths: 'All Months',
+        allStations: 'All Stations',
         allDepartments: 'All Departments',
         allFleets: 'All Fleets',
         allReportTypes: 'All Report Types',
@@ -30,7 +36,6 @@ SRD.DASHBOARD = (function () {
         totalFlights: 'Total Flights',
         averageRiskScore: 'Average Risk Score',
         monitoredStations: 'Monitored Stations',
-        allStations: 'All stations',
         stationTotal: 'Station total',
         likelihoodSeverity: 'Likelihood × Severity',
         active: 'Active',
@@ -74,19 +79,65 @@ SRD.DASHBOARD = (function () {
       .replace(/'/g, '&#039;');
   }
 
+  function cleanOptionList(arr) {
+    return SRD.DATA.uniq((arr || []).filter(function (v) {
+      return v !== undefined && v !== null && String(v).trim() !== '';
+    })).sort();
+  }
+
   /* ── FILTER BAR ──────────────────────────────────────────────── */
 
-  function buildFilterBar(container, rows, spiMap, onChange) {
+  function buildFilterBar(container, rows, stations, spiMap, onChange) {
     var D = SRD.DATA;
     var t = getT();
 
-    var years    = D.uniq(rows.map(function (r) { return r.year; })).sort().reverse();
-    var months   = D.uniq(rows.map(function (r) { return r.yearMonth; })).sort().reverse();
-    var depts    = D.uniq(rows.map(function (r) { return r.dept; })).sort();
-    var fleets   = D.uniq(rows.map(function (r) { return r.fleet; })).sort();
-    var rtypes   = D.uniq(rows.map(function (r) { return r.repType; })).sort();
-    var regions  = D.uniq(rows.map(function (r) { return r.region; })).sort();
-    var spiCodes = D.uniq(rows.reduce(function (a, r) { return a.concat(r.spiTags); }, [])).sort();
+    var years = cleanOptionList(rows.map(function (r) {
+      return r.year;
+    })).sort().reverse();
+
+    var months = cleanOptionList(rows.map(function (r) {
+      return r.yearMonth;
+    })).sort().reverse();
+
+    var stationCodes = cleanOptionList((stations || []).map(function (s) {
+      return s.loc;
+    }));
+
+    var depts = cleanOptionList(rows.map(function (r) {
+      return r.dept;
+    }));
+
+    var fleets = cleanOptionList(rows.map(function (r) {
+      return r.fleet;
+    }));
+
+    var rtypes = cleanOptionList(rows.map(function (r) {
+      return r.repType;
+    }));
+
+    /*
+      Region artık data.js içinde temizleniyor.
+      Buraya sadece 1.Bölge, 2.Bölge, - gibi geçerli değerler gelmeli.
+    */
+    var regions = cleanOptionList(rows.map(function (r) {
+      return r.region;
+    }));
+
+    var spiCodes = D.uniq(rows.reduce(function (arr, r) {
+      return arr.concat(r.spiTags || []);
+    }, [])).filter(function (code) {
+      return !!code && !!spiMap[code];
+    }).sort();
+
+    var spiOptions = spiCodes.map(function (code) {
+      var info = spiMap[code] || {};
+      var label = info.title ? code + ' — ' + info.title : code;
+
+      return {
+        value: code,
+        label: label
+      };
+    });
 
     function mkSel(id, label, opts) {
       var s = document.createElement('select');
@@ -98,10 +149,18 @@ SRD.DASHBOARD = (function () {
       def.textContent = label;
       s.appendChild(def);
 
-      opts.forEach(function (o) {
+      (opts || []).forEach(function (o) {
         var op = document.createElement('option');
-        op.value = o;
-        op.textContent = o;
+
+        if (typeof o === 'object') {
+          op.value = o.value;
+          op.textContent = o.label;
+          if (o.title) op.title = o.title;
+        } else {
+          op.value = o;
+          op.textContent = o;
+        }
+
         s.appendChild(op);
       });
 
@@ -120,15 +179,16 @@ SRD.DASHBOARD = (function () {
     container.appendChild(lbl);
 
     [
-      mkSel('f-year',   t('allYears'),       years),
-      mkSel('f-month',  t('allMonths'),      months),
-      mkSel('f-dept',   t('allDepartments'), depts),
-      mkSel('f-fleet',  t('allFleets'),      fleets),
-      mkSel('f-rtype',  t('allReportTypes'), rtypes),
-      mkSel('f-region', t('allRegions'),     regions),
-      mkSel('f-sev',    t('allLevels'),      ['A', 'B', 'C', 'D', 'E']),
-      mkSel('f-status', t('allStatuses'),    ['Open', 'Closed', 'In Progress']),
-      mkSel('f-spi',    t('allSPI'),         spiCodes)
+      mkSel('f-year',    t('allYears'),       years),
+      mkSel('f-month',   t('allMonths'),      months),
+      mkSel('f-station', t('allStations'),    stationCodes),
+      mkSel('f-dept',    t('allDepartments'), depts),
+      mkSel('f-fleet',   t('allFleets'),      fleets),
+      mkSel('f-rtype',   t('allReportTypes'), rtypes),
+      mkSel('f-region',  t('allRegions'),     regions),
+      mkSel('f-sev',     t('allLevels'),      ['A', 'B', 'C', 'D', 'E']),
+      mkSel('f-status',  t('allStatuses'),    ['Open', 'Closed', 'In Progress']),
+      mkSel('f-spi',     t('allSPI'),         spiOptions)
     ].forEach(function (s) {
       container.appendChild(s);
     });
@@ -143,6 +203,7 @@ SRD.DASHBOARD = (function () {
     return {
       year: v('f-year'),
       month: v('f-month'),
+      station: v('f-station'),
       dept: v('f-dept'),
       fleet: v('f-fleet'),
       rtype: v('f-rtype'),
@@ -345,8 +406,11 @@ SRD.DASHBOARD = (function () {
     var monthMap = {};
 
     rows.forEach(function (r) {
-      var m = (r.yearMonth || r.date || '').slice(0, 7);
-      if (m) monthMap[m] = (monthMap[m] || 0) + 1;
+      var m = r.yearMonth || '';
+
+      if (m) {
+        monthMap[m] = (monthMap[m] || 0) + 1;
+      }
     });
 
     var labels = Object.keys(monthMap).sort();
@@ -411,7 +475,7 @@ SRD.DASHBOARD = (function () {
     var agg = {};
 
     rows.forEach(function (r) {
-      var tags = r.spiTags.length ? r.spiTags : ['NonSPI'];
+      var tags = r.spiTags && r.spiTags.length ? r.spiTags : ['NonSPI'];
 
       tags.forEach(function (tag) {
         if (!agg[tag]) {
@@ -424,7 +488,7 @@ SRD.DASHBOARD = (function () {
         }
 
         agg[tag].count++;
-        agg[tag].totalRisk += r.riskScore || 0;
+        agg[tag].totalRisk += Number(r.riskScore || 0);
 
         if (agg[tag].levels[r.riskLevel] != null) {
           agg[tag].levels[r.riskLevel]++;
@@ -489,36 +553,27 @@ SRD.DASHBOARD = (function () {
   /* ── RENDER ──────────────────────────────────────────────────── */
 
   function render(container, data) {
-    if (!container) return;
+    if (!container || !data) return;
 
     var t = getT();
 
-    /*
-      container.className = 'dashboard-page' kullanmıyoruz.
-      Çünkü bu, "page" ve "srd-active" class'larını silebilir.
-    */
     container.innerHTML = '';
     container.classList.add('dashboard-page');
 
-    /* Filter bar */
     var fb = document.createElement('div');
     fb.className = 'filterbar';
     container.appendChild(fb);
 
-    /* Main area */
     var main = document.createElement('div');
     main.className = 'dashboard-main';
 
-    /* KPI grid */
     var kpiGrid = document.createElement('div');
     kpiGrid.className = 'kpi-grid';
     main.appendChild(kpiGrid);
 
-    /* Charts row: Line + Donut */
     var chartsRow = document.createElement('div');
     chartsRow.className = 'charts-row';
 
-    /* Line chart card */
     var lineCard = document.createElement('div');
     lineCard.className = 'card';
 
@@ -532,7 +587,6 @@ SRD.DASHBOARD = (function () {
       '<div class="card-body"><div class="chart-wrap"><canvas id="db-line"></canvas></div></div>'
     ].join('');
 
-    /* Donut tabs */
     var dtabs = document.createElement('div');
     dtabs.className = 'dtabs';
 
@@ -558,7 +612,6 @@ SRD.DASHBOARD = (function () {
       dtabs.appendChild(btn);
     });
 
-    /* Donut card */
     var donutCard = document.createElement('div');
     donutCard.className = 'card';
 
@@ -592,11 +645,9 @@ SRD.DASHBOARD = (function () {
     chartsRow.appendChild(donutCard);
     main.appendChild(chartsRow);
 
-    /* Bottom row: SPI + Top Risk */
     var bottomRow = document.createElement('div');
     bottomRow.className = 'bottom-row';
 
-    /* SPI card */
     var spiCard = document.createElement('div');
     spiCard.className = 'card';
 
@@ -622,7 +673,6 @@ SRD.DASHBOARD = (function () {
       '</div>'
     ].join('');
 
-    /* Top Risk card */
     var topCard = document.createElement('div');
     topCard.className = 'card';
 
@@ -642,10 +692,7 @@ SRD.DASHBOARD = (function () {
     main.appendChild(bottomRow);
     container.appendChild(main);
 
-    /* Initial render */
-    _donutSets = SRD.DATA.buildDonutSets(data.rows, data.spiMap);
-
-    buildFilterBar(fb, data.rows, data.spiMap, function () {
+    buildFilterBar(fb, data.rows, data.stations, data.spiMap, function () {
       var filtered = SRD.DATA.applyFilters(data.rows, data.stations, getFilters());
       var kpis = SRD.DATA.calcKPIs(filtered.rows, filtered.stations);
 
@@ -663,6 +710,8 @@ SRD.DASHBOARD = (function () {
     });
 
     var kpis = SRD.DATA.calcKPIs(data.rows, data.stations);
+
+    _donutSets = SRD.DATA.buildDonutSets(data.rows, data.spiMap);
 
     renderKPIs(kpiGrid, kpis);
     renderDonut('db-donut', 'db-donut-leg', 'sev');
