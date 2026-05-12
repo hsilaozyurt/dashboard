@@ -1,5 +1,5 @@
 /* ================================================================
-   main.js — App init, routing, CSV loading, drawer, theme, language
+   main.js — App init, routing, Excel loading, drawer, theme, language
    Final revised version:
    - Prevents pages from stacking
    - Restores missing "page" class if another file removes it
@@ -10,6 +10,7 @@
    - Exposes SRD.I18N.t() for page files
    - Includes Overview + Dashboard + Stations translations
    - Adds SharePoint header navigation buttons
+   - Loads data from Excel files using SRD.DATA.loadExcel()
    ================================================================ */
 
 (function () {
@@ -61,7 +62,7 @@
 
       stationsBadge: 'Stations',
       loadingData: 'Loading data...',
-      csvLoadError: 'CSV load error:',
+      csvLoadError: 'Data load error:',
       runLocalServer: 'Run a local server: Live Server or',
 
       /* Overview page */
@@ -72,7 +73,7 @@
       compositeScore: 'Composite Score',
       compositeScoreText: 'Station composite score = (Σ RiskScore / Flight Count) × 100. This normalizes risk exposure by operational volume.',
       dataSources: 'Data Sources',
-      dataSourcesText: 'All_Station_Info.csv contains occurrence reports. Ucus_sayilari.csv provides flight counts per station. SPI_kategorileri.csv maps SPI codes.',
+      dataSourcesText: 'All_Station_Info.xlsx contains occurrence reports. Ucus_sayilari.xlsx provides flight counts per station. SPI_kategorileri.xlsx maps SPI codes.',
       moreComing: 'More content coming soon',
       moreComingText: 'This section will include executive summaries, regulatory updates, and key safety metrics for management review.',
 
@@ -80,6 +81,7 @@
       filter: 'Filter',
       allYears: 'All Years',
       allMonths: 'All Months',
+      allStations: 'All Stations',
       allDepartments: 'All Departments',
       allFleets: 'All Fleets',
       allReportTypes: 'All Report Types',
@@ -93,7 +95,7 @@
       totalFlights: 'Total Flights',
       averageRiskScore: 'Average Risk Score',
       monitoredStations: 'Monitored Stations',
-      allStations: 'All stations',
+      allStationsLabel: 'All stations',
       stationTotal: 'Station total',
       likelihoodSeverity: 'Likelihood × Severity',
       active: 'Active',
@@ -130,7 +132,7 @@
       searchIata: 'Search IATA...',
       clearFilters: 'Clear Filters',
       noStationsFound: 'No stations found',
-      noStationsFoundSub: 'Try clearing filters or check whether CSV data is loaded correctly.',
+      noStationsFoundSub: 'Try clearing filters or check whether Excel data is loaded correctly.',
       all: 'All',
       flights: 'Flights',
       highSeverity: 'A+B High Sev',
@@ -160,7 +162,7 @@
 
       stationsBadge: 'İstasyon',
       loadingData: 'Veriler yükleniyor...',
-      csvLoadError: 'CSV yükleme hatası:',
+      csvLoadError: 'Veri yükleme hatası:',
       runLocalServer: 'Yerel sunucu çalıştır: Live Server veya',
 
       /* Overview page */
@@ -171,7 +173,7 @@
       compositeScore: 'Bileşik Skor',
       compositeScoreText: 'İstasyon bileşik skoru = (Σ Risk Skoru / Uçuş Sayısı) × 100. Bu hesaplama, operasyonel hacme göre risk maruziyetini normalize eder.',
       dataSources: 'Veri Kaynakları',
-      dataSourcesText: 'All_Station_Info.csv olay raporlarını içerir. Ucus_sayilari.csv istasyon başına uçuş sayılarını sağlar. SPI_kategorileri.csv SPI kodlarını eşleştirir.',
+      dataSourcesText: 'All_Station_Info.xlsx olay raporlarını içerir. Ucus_sayilari.xlsx istasyon başına uçuş sayılarını sağlar. SPI_kategorileri.xlsx SPI kodlarını eşleştirir.',
       moreComing: 'Daha fazla içerik yakında',
       moreComingText: 'Bu bölümde yönetim incelemesi için özetler, mevzuat güncellemeleri ve temel emniyet metrikleri yer alacaktır.',
 
@@ -179,6 +181,7 @@
       filter: 'Filtre',
       allYears: 'Tüm Yıllar',
       allMonths: 'Tüm Aylar',
+      allStations: 'Tüm İstasyonlar',
       allDepartments: 'Tüm Departmanlar',
       allFleets: 'Tüm Filolar',
       allReportTypes: 'Tüm Rapor Türleri',
@@ -192,7 +195,7 @@
       totalFlights: 'Toplam Uçuş',
       averageRiskScore: 'Ortalama Risk Skoru',
       monitoredStations: 'İzlenen İstasyonlar',
-      allStations: 'Tüm istasyonlar',
+      allStationsLabel: 'Tüm istasyonlar',
       stationTotal: 'İstasyon toplamı',
       likelihoodSeverity: 'Olasılık × Şiddet',
       active: 'Aktif',
@@ -229,7 +232,7 @@
       searchIata: 'IATA ara...',
       clearFilters: 'Filtreleri Temizle',
       noStationsFound: 'İstasyon bulunamadı',
-      noStationsFoundSub: 'Filtreleri temizlemeyi deneyin veya CSV verilerinin doğru yüklendiğini kontrol edin.',
+      noStationsFoundSub: 'Filtreleri temizlemeyi deneyin veya Excel verilerinin doğru yüklendiğini kontrol edin.',
       all: 'Tümü',
       flights: 'Uçuşlar',
       highSeverity: 'A+B Yüksek Şiddet',
@@ -668,9 +671,9 @@
   /* ── INIT ───────────────────────────────────────────────────── */
 
   var config = window.SRD_CONFIG || {
-    incidentsCsv: 'data/All_Station_Info.csv',
-    stationsCsv:  'data/Ucus_sayilari.csv',
-    spiCsv:       'data/SPI_kategorileri.csv'
+    incidentsExcel: 'data/All_Station_Info.xlsx',
+    stationsExcel:  'data/Ucus_sayilari.xlsx',
+    spiExcel:       'data/SPI_kategorileri.xlsx'
   };
 
   restorePageClasses();
@@ -683,9 +686,9 @@
   setLastUpdate();
 
   Promise.all([
-    SRD.DATA.loadCSV(config.incidentsCsv),
-    SRD.DATA.loadCSV(config.stationsCsv),
-    SRD.DATA.loadCSV(config.spiCsv)
+    SRD.DATA.loadExcel(config.incidentsExcel),
+    SRD.DATA.loadExcel(config.stationsExcel),
+    SRD.DATA.loadExcel(config.spiExcel)
   ])
     .then(function (results) {
       _data = SRD.DATA.processData(results[0], results[1], results[2]);

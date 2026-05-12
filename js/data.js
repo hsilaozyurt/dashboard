@@ -1,9 +1,9 @@
 /* ================================================================
-   data.js — CSV parser, data processing, risk calculations
+   data.js — Excel / CSV data loading, processing, risk calculations
 
-   FINAL STRICT MAPPING VERSION
+   EXCEL-FIRST VERSION
 
-   Main incident CSV:
+   Main incident Excel:
    - Year              -> MC_Year
    - Month/Year        -> MC_Year_Month
    - Full date         -> MC_Date
@@ -13,14 +13,14 @@
    - Occurrence count  -> unique Occurrence_No
    - Incident SPI      -> SPI_1 and SPI_2 only
 
-   SPI CSV:
+   SPI Excel:
    - SPI code          -> SPI
    - SPI title         -> Title
    - SPI class         -> SPI_Class
 
-   Flight CSV:
+   Flight Excel:
    - Station           -> Loc
-   - Flight count      -> 2nd column / Uçuş Sayısı
+   - Flight count      -> Uçuş Sayısı / 2nd column fallback
 
    Important:
    - Fake/empty Loc records are NOT deleted.
@@ -32,7 +32,40 @@ var SRD = SRD || {};
 
 SRD.DATA = (function () {
 
-  /* ── CSV PARSER ─────────────────────────────────────────────── */
+  /* ── EXCEL LOADER ───────────────────────────────────────────── */
+
+  function loadExcel(path, sheetName) {
+    if (typeof XLSX === 'undefined') {
+      throw new Error('XLSX library is not loaded. Add SheetJS script to index.html.');
+    }
+
+    return fetch(path)
+      .then(function (resp) {
+        if (!resp.ok) throw new Error('Failed to load Excel file: ' + path);
+        return resp.arrayBuffer();
+      })
+      .then(function (buffer) {
+        var workbook = XLSX.read(buffer, {
+          type: 'array',
+          cellDates: true
+        });
+
+        var targetSheet = sheetName || workbook.SheetNames[0];
+        var sheet = workbook.Sheets[targetSheet];
+
+        if (!sheet) {
+          throw new Error('Sheet not found: ' + targetSheet + ' in ' + path);
+        }
+
+        return XLSX.utils.sheet_to_json(sheet, {
+          defval: '',
+          raw: false,
+          dateNF: 'dd.mm.yyyy'
+        });
+      });
+  }
+
+  /* ── CSV LOADER: fallback olarak kalıyor ─────────────────────── */
 
   function detectDelimiter(firstLine) {
     var commaCount = (firstLine.match(/,/g) || []).length;
@@ -64,7 +97,6 @@ SRD.DATA = (function () {
     }
 
     if (cur.trim()) records.push(cur);
-
     return records;
   }
 
@@ -91,7 +123,6 @@ SRD.DATA = (function () {
     }
 
     cols.push(cur.trim());
-
     return cols;
   }
 
@@ -115,11 +146,9 @@ SRD.DATA = (function () {
     if (!text) return [];
 
     text = String(text).replace(/^\uFEFF/, '').trim();
-
     if (!text) return [];
 
     var records = splitCSVRecords(text);
-
     if (records.length < 2) return [];
 
     var delim = detectDelimiter(records[0]);
@@ -144,7 +173,7 @@ SRD.DATA = (function () {
   function loadCSV(path) {
     return fetch(path)
       .then(function (resp) {
-        if (!resp.ok) throw new Error('Failed to load: ' + path);
+        if (!resp.ok) throw new Error('Failed to load CSV file: ' + path);
         return resp.text();
       })
       .then(parseCSV);
@@ -153,6 +182,13 @@ SRD.DATA = (function () {
   /* ── BASIC HELPERS ──────────────────────────────────────────── */
 
   function str(v) {
+    if (v instanceof Date) {
+      var dd = String(v.getDate()).padStart(2, '0');
+      var mm = String(v.getMonth() + 1).padStart(2, '0');
+      var yyyy = v.getFullYear();
+      return dd + '.' + mm + '.' + yyyy;
+    }
+
     return String(v || '').trim();
   }
 
@@ -213,8 +249,8 @@ SRD.DATA = (function () {
 
   function getFlightLoc(row) {
     /*
-      Flight CSV station comes from Loc.
-      If header encoding is broken, use first column fallback.
+      Flight Excel station comes from Loc.
+      If header is unexpected, use first column fallback.
     */
     return cleanStation(
       pick(row, ['Loc', 'LOC', 'loc', 'IATA', 'Station', 'Airport']) ||
@@ -224,9 +260,9 @@ SRD.DATA = (function () {
 
   function getFlightCount(row) {
     /*
-      Flight CSV:
-      0: Loc
-      1: Flight count / Uçuş Sayısı
+      Flight Excel:
+      Loc + Uçuş Sayısı.
+      If header is unexpected, use 2nd column fallback.
     */
     var v = pick(row, [
       'Uçuş Sayısı',
@@ -242,12 +278,7 @@ SRD.DATA = (function () {
       'count',
       'Sayı',
       'Sayi',
-      'Adet',
-      'U�u? Say?s?',
-      'U?u? Say?s?',
-      'Uçu? Say?s?',
-      'U�uş Sayısı',
-      'UÃ§uÅŸ SayÄ±sÄ±'
+      'Adet'
     ]) || byIndex(row, 1);
 
     return parseNumber(v);
@@ -461,11 +492,8 @@ SRD.DATA = (function () {
 
     spiRows.forEach(function (row) {
       /*
-        SPI CSV:
-        0: SPI
-        1: SPI Sayısı
-        2: Title
-        3: SPI_Class
+        SPI Excel:
+        SPI | SPI Sayısı | Title | SPI_Class
       */
       var code = normalizeSpiCode(
         pick(row, ['SPI', 'SPI_Code', 'Code', 'code']) ||
@@ -656,7 +684,8 @@ SRD.DATA = (function () {
       '| unique:', countUnique(rows),
       '| stationRows:', stations.reduce(function (acc, s) { return acc + s.rowCount; }, 0),
       '| stations:', stations.length,
-      '| flightLocs:', Object.keys(flightMap).length
+      '| flightLocs:', Object.keys(flightMap).length,
+      '| spiCodes:', Object.keys(spiMap).length
     );
 
     return {
@@ -895,6 +924,7 @@ SRD.DATA = (function () {
   }
 
   return {
+    loadExcel: loadExcel,
     loadCSV: loadCSV,
     parseCSV: parseCSV,
     processData: processData,
