@@ -2,6 +2,7 @@
    dashboard.js — Dashboard page
    Bilingual + corrected filter version
    - Adds station filter
+   - Adds clear filters button only
    - SPI filter displays SPI code + title from SPI CSV
    - Region filter uses cleaned region values from data.js
    - Year / Month filters use normalized values from data.js
@@ -21,6 +22,8 @@ SRD.DASHBOARD = (function () {
     return function (key) {
       var fallback = {
         filter: 'Filter',
+        clearFilters: 'Clear Filters',
+
         allYears: 'All Years',
         allMonths: 'All Months',
         allStations: 'All Stations',
@@ -167,6 +170,26 @@ SRD.DASHBOARD = (function () {
       return s;
     }
 
+    function clearAllFilters() {
+      [
+        'f-year',
+        'f-month',
+        'f-station',
+        'f-dept',
+        'f-fleet',
+        'f-rtype',
+        'f-region',
+        'f-sev',
+        'f-status',
+        'f-spi'
+      ].forEach(function (id) {
+        var el = document.getElementById(id);
+        if (el) el.value = '';
+      });
+
+      onChange();
+    }
+
     container.innerHTML = '';
 
     var lbl = document.createElement('div');
@@ -192,6 +215,21 @@ SRD.DASHBOARD = (function () {
     ].forEach(function (s) {
       container.appendChild(s);
     });
+
+    var clearBtn = document.createElement('button');
+    clearBtn.type = 'button';
+    clearBtn.className = 'filter-clear-btn';
+    clearBtn.innerHTML =
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13">' +
+        '<path d="M3 6h18"/>' +
+        '<path d="M8 6V4h8v2"/>' +
+        '<path d="M19 6l-1 14H6L5 6"/>' +
+      '</svg>' +
+      '<span>' + escapeHTML(t('clearFilters')) + '</span>';
+
+    clearBtn.onclick = clearAllFilters;
+
+    container.appendChild(clearBtn);
   }
 
   function getFilters() {

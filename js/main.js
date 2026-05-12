@@ -136,7 +136,10 @@
       all: 'All',
       flights: 'Flights',
       highSeverity: 'A+B High Sev',
-      distribution: 'Distribution'
+      distribution: 'Distribution',
+      clearFilters: 'Clear Filters',
+backToStations: 'Back to All Stations',
+noStationsFound: 'No stations found'
     },
 
     tr: {
@@ -236,7 +239,11 @@
       all: 'Tümü',
       flights: 'Uçuşlar',
       highSeverity: 'A+B Yüksek Şiddet',
-      distribution: 'Dağılım'
+      distribution: 'Dağılım',
+      clearFilters: 'Filtreleri Temizle',
+backToStations: 'Tüm İstasyonlara Geri Dön',
+noStationsFound: 'İstasyon bulunamadı'
+      
     }
   };
 
