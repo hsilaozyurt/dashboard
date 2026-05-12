@@ -26,20 +26,13 @@
    Station normalized risk:
    - Active flight year = 2025
    - Minimum event count for ranking = 5
-   - Normalized Risk = (Σ RiskScore / 2025 Flights) × 10,000
-   - If 2025 Flights = 0 or event count < 5, Normalized Risk = 0
-
-   Station aliases:
-   - TXF, BER and SXF are treated as the same station.
-   - Canonical code shown in dashboard: SXF
-
-   Excluded stations:
-   - HYD and MAA are ignored as station codes.
-   - Their records are NOT deleted, but they do not enter station-based calculations.
+   - Composite Score = (Σ RiskScore / 2025 Flights) × 100
+   - If 2025 Flights = 0 or event count < 5, Composite Score = 0
 
    Important:
+   - Total Flights KPI uses ALL YEARS.
+   - Composite Score uses only 2025 flights.
    - Fake/empty/excluded Loc records are NOT deleted.
-   - Fake/empty/excluded Loc records are included in KPIs, filters, SPI, trend.
    - Fake/empty/excluded Loc records are skipped only in station-based calculations.
    ================================================================ */
 
@@ -242,31 +235,16 @@ SRD.DATA = (function () {
 
     if (!v) return 0;
 
-    /*
-      Türkçe / Excel binlik ayırıcıları:
-      1.888       -> 1888
-      12.345      -> 12345
-      1.234.567   -> 1234567
-    */
     if (/^\d{1,3}(\.\d{3})+$/.test(v)) {
       v = v.replace(/\./g, '');
       return parseInt(v, 10) || 0;
     }
 
-    /*
-      Virgüllü binlik ihtimali:
-      1,888       -> 1888
-      12,345      -> 12345
-    */
     if (/^\d{1,3}(,\d{3})+$/.test(v)) {
       v = v.replace(/,/g, '');
       return parseInt(v, 10) || 0;
     }
 
-    /*
-      Virgüllü ondalık ihtimali:
-      1888,0      -> 1888
-    */
     if (v.indexOf(',') >= 0 && v.indexOf('.') < 0) {
       v = v.replace(',', '.');
     }
@@ -281,32 +259,23 @@ SRD.DATA = (function () {
   var ACTIVE_FLIGHT_YEAR = '2025';
   var MIN_EVENTS_FOR_RANKING = 5;
 
+  /*
+    Eskiden ×10.000 kullanıyorduk.
+    Bu skorları çok büyüttüğü için daha okunabilir olsun diye ×100 yapıldı.
+  */
+  var COMPOSITE_SCALE = 100;
+
   var STATION_ALIASES = {
     TXF: 'SXF',
     BER: 'SXF'
   };
 
-  /*
-    Bu listedeki istasyonlar station hesabına alınmaz.
-    Kayıt silinmez; loc boş döner.
-  */
   var EXCLUDED_STATIONS = {
     HYD: true,
     MAA: true
   };
 
   function cleanStation(value) {
-    /*
-      Station/IATA must be a 3-letter alphabetic code.
-      Fake values like 2026, 32, 1BLGE, 3E become empty string.
-
-      Alias mapping:
-      SXF, TXF and BER are treated as the same station.
-      Canonical output: SXF
-
-      Excluded stations:
-      HYD and MAA return empty loc.
-    */
     var raw = str(value).toUpperCase();
 
     if (!raw) return '';
@@ -327,23 +296,10 @@ SRD.DATA = (function () {
   }
 
   function getIncidentLoc(row) {
-    /*
-      Incident station comes ONLY from Loc.
-      No fallback to Location, Departure_Point, Destination_Point.
-    */
     return cleanStation(row['Loc'] || row['LOC'] || row['loc'] || '');
   }
 
   function getFlightLoc(row) {
-    /*
-      Flight Excel new format:
-      0: Ay Yıl
-      1: Location
-      2: Uçuş Sayısı
-
-      Flight station/IATA comes from Location.
-      If header is unexpected, use 2nd column fallback.
-    */
     return cleanStation(
       pick(row, [
         'Location',
@@ -360,15 +316,6 @@ SRD.DATA = (function () {
   }
 
   function getFlightCount(row) {
-    /*
-      Flight Excel new format:
-      0: Ay Yıl
-      1: Location
-      2: Uçuş Sayısı
-
-      Flight count comes from Uçuş Sayısı.
-      If header is unexpected, use 3rd column fallback.
-    */
     var v = pick(row, [
       'Uçuş Sayısı',
       'Ucus Sayisi',
@@ -390,16 +337,6 @@ SRD.DATA = (function () {
   }
 
   function getFlightYear(row) {
-    /*
-      Flight Excel:
-      Ay Yıl kolonundan yıl okunur.
-      Desteklenen örnekler:
-      - 01.2025
-      - 2025-01
-      - 2025.01
-      - 01/2025
-      - Date object
-    */
     var raw = pick(row, [
       'Ay Yıl',
       'Ay Yil',
@@ -417,8 +354,8 @@ SRD.DATA = (function () {
     if (!raw) return '';
 
     var text = str(raw);
-
     var match = text.match(/(20[0-9]{2})/);
+
     return match ? match[1] : '';
   }
 
@@ -447,13 +384,6 @@ SRD.DATA = (function () {
   /* ── REGION ─────────────────────────────────────────────────── */
 
   function cleanRegion(value) {
-    /*
-      Region comes ONLY from Bölge.
-      Allowed outputs:
-      - 1.Bölge
-      - 2.Bölge
-      - -
-    */
     var raw = str(value).replace(/\s+/g, ' ');
 
     if (!raw) return '';
@@ -471,22 +401,11 @@ SRD.DATA = (function () {
   /* ── DATE HELPERS ───────────────────────────────────────────── */
 
   function normalizeYear(row) {
-    /*
-      Year comes ONLY from MC_Year.
-    */
     var y = str(row['MC_Year'] || '');
-
     return /^[0-9]{4}$/.test(y) ? y : '';
   }
 
   function normalizeYearMonth(row) {
-    /*
-      Month filter comes ONLY from MC_Year_Month.
-      Supported:
-      - 01.2026 -> 2026-01
-      - 2026-01 -> 2026-01
-      - 2026.01 -> 2026-01
-    */
     var ym = str(row['MC_Year_Month'] || '');
 
     if (!ym) return '';
@@ -503,10 +422,6 @@ SRD.DATA = (function () {
   }
 
   function getDate(row) {
-    /*
-      Full date comes ONLY from first MC_Date column.
-      Duplicate MC_Date_2 is ignored.
-    */
     return str(row['MC_Date'] || '');
   }
 
@@ -519,13 +434,6 @@ SRD.DATA = (function () {
 
     raw = raw.replace(',', '.');
 
-    /*
-      Examples:
-      6.7
-      6,7
-      6.7 - text
-      SPI 6.7
-    */
     var match = raw.match(/[0-9]+(?:\.[0-9]+)?/);
 
     return match ? match[0] : raw;
@@ -587,22 +495,20 @@ SRD.DATA = (function () {
 
   function parseRiskLevel(raw) {
     var first = str(raw).toUpperCase().charAt(0);
-
     return 'ABCDE'.indexOf(first) >= 0 ? first : null;
   }
 
-  function calcNormalizedRisk(totalRisk, flights) {
+  function calcCompositeScore(totalRisk, activeFlights) {
     /*
-      Normalized Risk = risk exposure per 10,000 flights.
-      If flight count is missing, score is 0 so that stations
-      with no flight data do not appear as artificially high-risk.
+      Composite Score = risk exposure per 100 active-year flights.
+      Active-year flights = 2025 flights.
     */
     totalRisk = Number(totalRisk || 0);
-    flights = Number(flights || 0);
+    activeFlights = Number(activeFlights || 0);
 
-    if (flights <= 0) return 0;
+    if (activeFlights <= 0) return 0;
 
-    return (totalRisk / flights) * 10000;
+    return (totalRisk / activeFlights) * COMPOSITE_SCALE;
   }
 
   /* ── FORMAT ─────────────────────────────────────────────────── */
@@ -627,7 +533,6 @@ SRD.DATA = (function () {
     flightRows = flightRows || [];
     spiRows    = spiRows    || [];
 
-    /* Flight maps */
     var flightMap = {};
     var activeFlightMap = {};
 
@@ -637,28 +542,17 @@ SRD.DATA = (function () {
       var year = getFlightYear(row);
 
       if (loc && cnt > 0) {
-        /*
-          Tüm uçuşlar: referans / debug için tutulur.
-        */
         flightMap[loc] = (flightMap[loc] || 0) + cnt;
 
-        /*
-          Risk sıralaması için sadece aktif yıl uçuşları kullanılır.
-        */
         if (year === ACTIVE_FLIGHT_YEAR) {
           activeFlightMap[loc] = (activeFlightMap[loc] || 0) + cnt;
         }
       }
     });
 
-    /* SPI map */
     var spiMap = {};
 
     spiRows.forEach(function (row) {
-      /*
-        SPI Excel:
-        SPI | SPI Sayısı | Title | SPI_Class
-      */
       var code = normalizeSpiCode(
         pick(row, ['SPI', 'SPI_Code', 'Code', 'code']) ||
         byIndex(row, 0)
@@ -682,7 +576,6 @@ SRD.DATA = (function () {
       };
     });
 
-    /* Normalize incidents */
     var rows = incidents.map(function (inc, index) {
       var loc = getIncidentLoc(inc);
 
@@ -720,10 +613,6 @@ SRD.DATA = (function () {
 
       var spiTags = [];
 
-      /*
-        Incident SPI relation comes ONLY from SPI_1 and SPI_2.
-        The main SPI column is intentionally ignored.
-      */
       if (!isNonSPI) {
         extractSpiTags(spiRaw1, spiMap).forEach(function (code) {
           if (spiTags.indexOf(code) < 0) spiTags.push(code);
@@ -768,20 +657,6 @@ SRD.DATA = (function () {
       };
     });
 
-    /*
-      IMPORTANT:
-      Do NOT filter out records with empty loc.
-      Empty/fake/excluded Loc records are included in:
-      - total recorded events
-      - year/month filters
-      - region filters
-      - SPI analysis
-      - trend chart
-
-      They are skipped only in station grouping below.
-    */
-
-    /* Station grouping */
     var stMap = {};
 
     rows.forEach(function (row) {
@@ -813,7 +688,7 @@ SRD.DATA = (function () {
         eventCount >= MIN_EVENTS_FOR_RANKING;
 
       var composite = isRankable
-        ? calcNormalizedRisk(totalRisk, activeFlights)
+        ? calcCompositeScore(totalRisk, activeFlights)
         : 0;
 
       var catCounts = {
@@ -839,20 +714,23 @@ SRD.DATA = (function () {
         totalRisk: totalRisk,
 
         /*
-          flights alanı dashboard/station-detail içinde gösterilen ana uçuş alanı.
-          Artık 2025 uçuşlarını gösterir.
+          flights = tüm yıllar toplam uçuş.
+          Bu alan Total Flights KPI ve station detail için kullanılır.
         */
-        flights: activeFlights,
+        flights: totalFlights,
+        totalFlightsAllYears: totalFlights,
 
         /*
-          Tüm dönem uçuşları referans için tutulur.
+          activeFlights = yalnızca 2025 uçuşları.
+          Bu alan composite score hesabında kullanılır.
         */
-        totalFlightsAllYears: totalFlights,
         activeFlights: activeFlights,
         activeFlightYear: ACTIVE_FLIGHT_YEAR,
 
         composite: composite,
         normalizedRisk: composite,
+        compositeScale: COMPOSITE_SCALE,
+
         isRankable: isRankable,
         minEventsForRanking: MIN_EVENTS_FOR_RANKING,
 
@@ -876,6 +754,7 @@ SRD.DATA = (function () {
       '| flightLocsActiveYear:', Object.keys(activeFlightMap).length,
       '| activeYear:', ACTIVE_FLIGHT_YEAR,
       '| minEvents:', MIN_EVENTS_FOR_RANKING,
+      '| compositeScale:', COMPOSITE_SCALE,
       '| spiCodes:', Object.keys(spiMap).length,
       '| sampleFlightsAllYears:', flightMap,
       '| sampleFlightsActiveYear:', activeFlightMap
@@ -888,6 +767,7 @@ SRD.DATA = (function () {
       activeFlightMap: activeFlightMap,
       activeFlightYear: ACTIVE_FLIGHT_YEAR,
       minEventsForRanking: MIN_EVENTS_FOR_RANKING,
+      compositeScale: COMPOSITE_SCALE,
       spiMap: spiMap
     };
   }
@@ -902,10 +782,11 @@ SRD.DATA = (function () {
       totalInc: countUnique(rows),
 
       /*
-        Toplam uçuş artık risk hesabıyla tutarlı olması için 2025 uçuşlarını toplar.
+        Total Flights tüm yıllar toplamıdır.
+        Composite hesabındaki 2025 uçuşlarından bağımsızdır.
       */
       totalFlight: stations.reduce(function (acc, st) {
-        return acc + Number(st.flights || 0);
+        return acc + Number(st.totalFlightsAllYears || st.flights || 0);
       }, 0),
 
       avgRisk: rows.length
@@ -967,15 +848,15 @@ SRD.DATA = (function () {
       });
 
       var eventCount = countUnique(incs);
-      var activeFlights = origSt ? Number(origSt.activeFlights || origSt.flights || 0) : 0;
-      var totalFlights = origSt ? Number(origSt.totalFlightsAllYears || 0) : 0;
+      var activeFlights = origSt ? Number(origSt.activeFlights || 0) : 0;
+      var totalFlights = origSt ? Number(origSt.totalFlightsAllYears || origSt.flights || 0) : 0;
 
       var isRankable =
         activeFlights > 0 &&
         eventCount >= MIN_EVENTS_FOR_RANKING;
 
       var composite = isRankable
-        ? calcNormalizedRisk(totalRisk, activeFlights)
+        ? calcCompositeScore(totalRisk, activeFlights)
         : 0;
 
       var catCounts = {
@@ -1000,13 +881,16 @@ SRD.DATA = (function () {
 
         totalRisk: totalRisk,
 
-        flights: activeFlights,
+        flights: totalFlights,
         totalFlightsAllYears: totalFlights,
+
         activeFlights: activeFlights,
         activeFlightYear: ACTIVE_FLIGHT_YEAR,
 
         composite: composite,
         normalizedRisk: composite,
+        compositeScale: COMPOSITE_SCALE,
+
         isRankable: isRankable,
         minEventsForRanking: MIN_EVENTS_FOR_RANKING,
 
