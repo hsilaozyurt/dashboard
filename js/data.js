@@ -1,16 +1,5 @@
 /* ================================================================
    data.js — CSV parser, data processing, risk calculations
-   Final corrected version:
-   - Robust CSV parser for comma / semicolon files
-   - Handles quoted multiline CSV records
-   - Uses Loc as station code
-   - Fake Loc values become empty loc, but records are NOT removed
-   - Station calculations skip empty/fake loc records
-   - Region filter only uses Bölge / Bolge / Region fields
-   - Incident SPI relation uses only SPI_1 and SPI_2
-   - SPI names/classes come from SPI_kategorileri.csv
-   - Total recorded events calculated from unique Occurrence_No
-   - Supports filters.station for dashboard station filter
    ================================================================ */
 
 var SRD = SRD || {};
@@ -22,118 +11,62 @@ SRD.DATA = (function () {
   function detectDelimiter(firstLine) {
     var commaCount = (firstLine.match(/,/g) || []).length;
     var semiCount  = (firstLine.match(/;/g) || []).length;
-
     return semiCount > commaCount ? ';' : ',';
   }
 
   function splitCSVRecords(text) {
-    var records = [];
-    var cur = '';
-    var inQ = false;
-
+    var records = [], cur = '', inQ = false;
     for (var i = 0; i < text.length; i++) {
-      var ch = text[i];
-      var next = text[i + 1];
-
-      if (ch === '"' && inQ && next === '"') {
-        cur += '""';
-        i++;
-      } else if (ch === '"') {
-        inQ = !inQ;
-        cur += ch;
-      } else if ((ch === '\n' || ch === '\r') && !inQ) {
-        if (cur.trim() !== '') records.push(cur);
+      var ch = text[i], next = text[i + 1];
+      if (ch === '"' && inQ && next === '"') { cur += '"'; i++; }
+      else if (ch === '"') { inQ = !inQ; }
+      else if ((ch === '\n' || ch === '\r') && !inQ) {
+        if (cur.trim()) records.push(cur);
         cur = '';
-
         if (ch === '\r' && next === '\n') i++;
-      } else {
-        cur += ch;
-      }
+      } else { cur += ch; }
     }
-
-    if (cur.trim() !== '') records.push(cur);
-
+    if (cur.trim()) records.push(cur);
     return records;
   }
 
-  function splitCSVLine(line, delimiter) {
-    var cols = [];
-    var cur = '';
-    var inQ = false;
-
+  function splitCSVLine(line, delim) {
+    var cols = [], cur = '', inQ = false;
     for (var i = 0; i < line.length; i++) {
-      var ch = line[i];
-      var next = line[i + 1];
-
-      if (ch === '"' && inQ && next === '"') {
-        cur += '"';
-        i++;
-      } else if (ch === '"') {
-        inQ = !inQ;
-      } else if (ch === delimiter && !inQ) {
-        cols.push(cur.trim());
-        cur = '';
-      } else {
-        cur += ch;
-      }
+      var ch = line[i], next = line[i + 1];
+      if (ch === '"' && inQ && next === '"') { cur += '"'; i++; }
+      else if (ch === '"') { inQ = !inQ; }
+      else if (ch === delim && !inQ) { cols.push(cur.trim()); cur = ''; }
+      else { cur += ch; }
     }
-
     cols.push(cur.trim());
-
     return cols;
-  }
-
-  function normalizeHeaderName(h) {
-    return String(h || '')
-      .replace(/^\uFEFF/, '')
-      .trim();
   }
 
   function makeUniqueHeaders(headers) {
     var seen = {};
-
     return headers.map(function (h) {
-      h = normalizeHeaderName(h);
-
-      if (!h) h = 'EMPTY';
-
-      if (!seen[h]) {
-        seen[h] = 1;
-        return h;
-      }
-
-      seen[h]++;
-      return h + '_' + seen[h];
+      h = String(h || '').replace(/^\uFEFF/, '').trim() || 'EMPTY';
+      if (!seen[h]) { seen[h] = 1; return h; }
+      return h + '_' + (++seen[h]);
     });
   }
 
   function parseCSV(text) {
     if (!text) return [];
-
     text = String(text).replace(/^\uFEFF/, '').trim();
-
     if (!text) return [];
-
     var records = splitCSVRecords(text);
-
     if (records.length < 2) return [];
-
-    var delimiter = detectDelimiter(records[0]);
-    var headers = makeUniqueHeaders(splitCSVLine(records[0], delimiter));
-
-    return records.slice(1).map(function (record) {
-      var cols = splitCSVLine(record, delimiter);
+    var delim = detectDelimiter(records[0]);
+    var headers = makeUniqueHeaders(splitCSVLine(records[0], delim));
+    return records.slice(1).map(function (rec) {
+      var cols = splitCSVLine(rec, delim);
       var obj = {};
-
-      headers.forEach(function (h, i) {
-        obj[h] = (cols[i] || '').trim();
-      });
-
+      headers.forEach(function (h, i) { obj[h] = (cols[i] || '').trim(); });
       return obj;
     }).filter(function (r) {
-      return Object.values(r).some(function (v) {
-        return String(v || '').trim() !== '';
-      });
+      return Object.values(r).some(function (v) { return String(v || '').trim() !== ''; });
     });
   }
 
@@ -146,363 +79,162 @@ SRD.DATA = (function () {
       .then(parseCSV);
   }
 
-  /* ── HELPERS ────────────────────────────────────────────────── */
+  /* ── HELPERS ─────────────────────────────────────────────────── */
 
   function pick(row, names) {
     for (var i = 0; i < names.length; i++) {
-      var key = names[i];
-
-      if (row[key] !== undefined && row[key] !== null) {
-        var val = String(row[key]).trim();
-
-        if (val !== '') return val;
-      }
+      var v = String(row[names[i]] || '').trim();
+      if (v) return v;
     }
-
     return '';
   }
 
-  function getByIndex(row, index) {
-    var keys = Object.keys(row || {});
-    var key = keys[index];
-
-    if (!key) return '';
-
-    return String(row[key] || '').trim();
+  function byIndex(row, idx) {
+    var k = Object.keys(row || {})[idx];
+    return k ? String(row[k] || '').trim() : '';
   }
 
-  function normalizeText(value) {
-    return String(value || '').trim();
-  }
-
-  function normalizeSpiCode(value) {
-    var raw = String(value || '').trim();
-
-    if (!raw) return '';
-
-    raw = raw.replace(',', '.');
-
-    /*
-      Examples:
-      "6.7"
-      "6,7"
-      "6.7 - Improper Loading"
-      "SPI 6.7"
-    */
-    var match = raw.match(/[0-9]+(?:\.[0-9]+)?/);
-
-    return match ? match[0] : raw;
-  }
-
-  function extractSpiTags(value, spiMap) {
-    var raw = String(value || '').trim();
-
-    if (!raw) return [];
-
-    raw = raw.replace(/,/g, '.');
-
-    var matches = raw.match(/[0-9]+(?:\.[0-9]+)?/g) || [];
-    var tags = [];
-
-    matches.forEach(function (code) {
-      if (spiMap[code] && tags.indexOf(code) < 0) {
-        tags.push(code);
-      }
-    });
-
-    var direct = normalizeSpiCode(raw);
-
-    if (direct && spiMap[direct] && tags.indexOf(direct) < 0) {
-      tags.push(direct);
-    }
-
-    return tags;
-  }
+  function s(v) { return String(v || '').trim(); }
 
   function parseNumber(value) {
-    if (value === undefined || value === null) return 0;
-
-    var s = String(value)
-      .trim()
-      .replace(/\s/g, '');
-
-    if (!s) return 0;
-
-    if (s.indexOf(',') >= 0 && s.indexOf('.') >= 0) {
-      s = s.replace(/\./g, '').replace(',', '.');
-    } else if (s.indexOf(',') >= 0) {
-      s = s.replace(',', '.');
-    }
-
-    s = s.replace(/[^0-9.\-]/g, '');
-
-    return parseFloat(s) || 0;
+    var str = String(value || '').trim().replace(/\s/g, '');
+    if (!str) return 0;
+    if (str.indexOf(',') >= 0 && str.indexOf('.') >= 0)
+      str = str.replace(/\./g, '').replace(',', '.');
+    else if (str.indexOf(',') >= 0)
+      str = str.replace(',', '.');
+    str = str.replace(/[^0-9.\-]/g, '');
+    return parseFloat(str) || 0;
   }
 
-  function cleanStationCode(value) {
-    var raw = normalizeText(value);
+  /* ── STATION CODE VALIDATION ─────────────────────────────────── */
 
+  function cleanStation(value) {
+    var raw = s(value).toUpperCase();
     if (!raw) return '';
-
-    raw = raw.toUpperCase().trim();
-
-    /*
-      Fake station values:
-      2026, 32, 6559, 1BLGE, 2BLGE, Bölge values etc.
-    */
     if (/^[0-9]+$/.test(raw)) return '';
-    if (/^[0-9]+BLGE$/.test(raw)) return '';
-    if (/BOLGE|BÖLGE|BLGE/.test(raw)) return '';
-
-    /*
-      Long descriptions cannot be station codes.
-    */
-    if (raw.length > 8) return '';
-
+    if (/BOLGE|BÖLGE|BLGE/i.test(raw)) return '';
+    if (/^[0-9]+[A-Z]+$/.test(raw) && raw.length <= 5 && /BLGE|BOLGE/.test(raw)) return '';
     raw = raw.replace(/[^A-Z0-9]/g, '');
-
-    /*
-      Real station/IATA-like values are generally 3+ characters.
-      2-character values like 3E are rejected to prevent false stations.
-    */
-    if (raw.length < 3 || raw.length > 5) return '';
-
+    if (raw.length < 2 || raw.length > 5) return '';
     if (!/[A-Z]/.test(raw)) return '';
-
     return raw;
   }
 
-  function cleanRegion(value) {
-    var raw = normalizeText(value);
-
-    if (!raw) return '';
-
-    raw = raw
-      .replace(/\s+/g, ' ')
-      .replace(/BOLGE/gi, 'Bölge')
-      .replace(/BÖLGE/gi, 'Bölge')
-      .trim();
-
-    if (raw === '-') return '-';
-
-    /*
-      Only values like 1.Bölge, 2.Bölge, 1. Bölge are valid.
-      IATA codes must not appear in region filter.
-    */
-    var m = raw.match(/^([0-9]+)\s*\.?\s*(Bölge|Bolge)$/i);
-
-    if (m) {
-      return m[1] + '.Bölge';
-    }
-
-    return '';
-  }
+  /* ── LOCATION FROM INCIDENT ROW ──────────────────────────────── */
 
   function getIncidentLoc(row) {
-    /*
-      IMPORTANT:
-      We do NOT require loc to exist in flight CSV.
-      Flight CSV is only for flight counts.
-      If Loc is fake, return empty string but keep the record.
-    */
+    /* Priority: Loc column first, then others */
     var candidates = [
       pick(row, ['Loc', 'LOC', 'loc']),
-      pick(row, ['IATA', 'IATA_Code', 'IATA Code', 'Station', 'Station_Code', 'Station Code']),
-      pick(row, ['Departure_Point', 'Departure Point']),
-      pick(row, ['Destination_Point', 'Destination Point']),
-      pick(row, ['Location'])
+      pick(row, ['Location']),
+      pick(row, ['IATA', 'IATA_Code', 'Station', 'Station_Code']),
     ];
-
     for (var i = 0; i < candidates.length; i++) {
-      var loc = cleanStationCode(candidates[i]);
-
+      var loc = cleanStation(candidates[i]);
       if (loc) return loc;
     }
-
     return '';
   }
 
+  /* ── FLIGHT LOC & COUNT ──────────────────────────────────────── */
+
   function getFlightLoc(row) {
-    return (
-      cleanStationCode(pick(row, [
-        'Loc',
-        'LOC',
-        'loc',
-        'IATA',
-        'IATA Code',
-        'IATA_Code',
-        'Station',
-        'Station Code',
-        'Station_Code',
-        'İstasyon',
-        'Istasyon',
-        'İstasyon Kodu',
-        'Istasyon Kodu',
-        'Airport',
-        'Airport Code',
-        'Airport_Code'
-      ])) ||
-      cleanStationCode(getByIndex(row, 0))
+    return cleanStation(
+      pick(row, ['Loc','LOC','loc','IATA','Station','Airport']) ||
+      byIndex(row, 0)
     );
   }
 
   function getFlightCount(row) {
-    var val = pick(row, [
-      'Uçuş Sayısı',
-      'Ucus Sayisi',
-      'Ucus_sayisi',
-      'Ucus Sayısı',
-      'Uçuş_Sayısı',
-      'Flight Count',
-      'Flight_Count',
-      'flight_count',
-      'Flights',
-      'flights',
-      'Total Flights',
-      'Total_Flights',
-      'Count',
-      'count',
-      'Sayı',
-      'Sayi',
-      'Adet',
-      'U�u? Say?s?',
-      'U?u? Say?s?',
-      'Uçu? Say?s?',
-      'U�uş Sayısı',
-      'UÃ§uÅŸ SayÄ±sÄ±'
-    ]);
-
-    /*
-      Ucus_sayilari.csv:
-      0: Loc
-      1: Uçuş Sayısı
-    */
-    if (!val) val = getByIndex(row, 1);
-
-    return parseNumber(val);
+    var v = pick(row, [
+      'Uçuş Sayısı','Ucus Sayisi','Ucus_sayisi','Uçuş_Sayısı',
+      'Flight Count','Flight_Count','flight_count','Flights','flights',
+      'Count','count','Sayı','Sayi','Adet'
+    ]) || byIndex(row, 1);
+    return parseNumber(v);
   }
 
-  function getOccurrenceNo(row) {
-    return normalizeText(pick(row, [
-      'Occurrence_No',
-      'Occurence_No',
-      'Occurrence No',
-      'Occurence No',
-      'OccurrenceNo',
-      'OccurenceNo',
-      'OCCURRENCE_NO',
-      'Occ No',
-      'OccNo'
+  /* ── OCCURRENCE NO ───────────────────────────────────────────── */
+
+  function getOccNo(row) {
+    return s(pick(row, [
+      'Occurrence_No','Occurence_No','Occurrence No','Occurence No',
+      'OccurrenceNo','OccurenceNo','OCCURRENCE_NO'
     ]));
   }
 
-  function countUniqueOccurrences(rows) {
-    var seen = {};
-    var count = 0;
-
-    (rows || []).forEach(function (r, index) {
-      var key = normalizeText(r.occNo);
-
-      if (!key) {
-        key = 'ROW_' + index + '_' + normalizeText(r.repNo || '');
-      }
-
-      if (!seen[key]) {
-        seen[key] = 1;
-        count++;
-      }
+  function countUnique(rows) {
+    var seen = {}, count = 0;
+    (rows || []).forEach(function (r, i) {
+      var key = s(r.occNo) || ('ROW_' + i);
+      if (!seen[key]) { seen[key] = 1; count++; }
     });
-
     return count;
   }
 
-  /* ── RISK MATRIX ─────────────────────────────────────────────── */
+  /* ── REGION ──────────────────────────────────────────────────── */
 
-  var SEV_COLOR = {
-    A: '#e05555',
-    B: '#d98a35',
-    C: '#c0a030',
-    D: '#38b272',
-    E: '#4294cc'
+  function cleanRegion(value) {
+    var raw = s(value).replace(/\s+/g, ' ');
+    if (!raw || raw === '-') return '';
+    var m = raw.match(/^([0-9]+)\s*\.?\s*(Bölge|Bolge|bolge|bölge)$/i);
+    return m ? m[1] + '.Bölge' : '';
+  }
+
+  /* ── DATE HELPERS ────────────────────────────────────────────── */
+
+  function normalizeYear(row) {
+    var y = pick(row, ['MC_Year','Year','year']);
+    if (/^[0-9]{4}$/.test(y)) return y;
+    var ym = pick(row, ['MC_Year_Month','Year_Month']);
+    var m = ym.match(/^([0-9]{4})/);
+    if (m) return m[1];
+    var d = pick(row, ['MC_Date','Date','date']);
+    var m2 = d.match(/([0-9]{4})/);
+    return m2 ? m2[1] : '';
+  }
+
+  function normalizeYearMonth(row) {
+    var ym = pick(row, ['MC_Year_Month','Year_Month']);
+    if (ym) return ym;
+    var d = pick(row, ['MC_Date','Date','date']);
+    var m1 = d.match(/^([0-9]{4})[-/.]([0-9]{1,2})/);
+    if (m1) return m1[1] + '-' + m1[2].padStart(2, '0');
+    var m2 = d.match(/^([0-9]{1,2})[-/.]([0-9]{1,2})[-/.]([0-9]{4})/);
+    if (m2) return m2[3] + '-' + m2[2].padStart(2, '0');
+    return '';
+  }
+
+  /* ── RISK ────────────────────────────────────────────────────── */
+
+  var SEV_COLOR = { A:'#e05555', B:'#d98a35', C:'#c0a030', D:'#38b272', E:'#4294cc' };
+  var SEV_BG    = {
+    A:'rgba(224,85,85,.13)', B:'rgba(217,138,53,.13)',
+    C:'rgba(192,160,48,.13)', D:'rgba(56,178,114,.13)', E:'rgba(66,148,204,.13)'
   };
 
-  var SEV_BG = {
-    A: 'rgba(224,85,85,.13)',
-    B: 'rgba(217,138,53,.13)',
-    C: 'rgba(192,160,48,.13)',
-    D: 'rgba(56,178,114,.13)',
-    E: 'rgba(66,148,204,.13)'
-  };
-
-  function getRiskCategory(score) {
+  function getRiskCat(score) {
     score = Number(score || 0);
-
     if (score >= 80) return 'A';
     if (score >= 45) return 'B';
     if (score >= 22) return 'C';
     if (score >= 10) return 'D';
-
     return 'E';
   }
 
   function parseRiskLevel(raw) {
-    var r = normalizeText(raw).toUpperCase();
-
-    if (!r) return null;
-
+    var r = s(raw).toUpperCase();
     var first = r.charAt(0);
-
     return 'ABCDE'.indexOf(first) >= 0 ? first : null;
-  }
-
-  function normalizeYear(row) {
-    var y = normalizeText(pick(row, ['MC_Year', 'Year', 'year']));
-
-    if (/^[0-9]{4}$/.test(y)) return y;
-
-    var ym = normalizeText(pick(row, ['MC_Year_Month', 'Year_Month', 'yearMonth']));
-
-    var m1 = ym.match(/^([0-9]{4})/);
-    if (m1) return m1[1];
-
-    var d = normalizeText(pick(row, ['MC_Date', 'MC_Date_2', 'Date', 'date']));
-
-    var m2 = d.match(/([0-9]{4})/);
-    if (m2) return m2[1];
-
-    return '';
-  }
-
-  function normalizeYearMonth(row) {
-    var ym = normalizeText(pick(row, ['MC_Year_Month', 'Year_Month', 'yearMonth']));
-
-    if (ym) return ym;
-
-    var d = normalizeText(pick(row, ['MC_Date', 'MC_Date_2', 'Date', 'date']));
-
-    /*
-      Supports formats:
-      2026-01-15
-      15.01.2026
-      01/15/2026
-    */
-    var m1 = d.match(/^([0-9]{4})[-/.]([0-9]{1,2})/);
-    if (m1) return m1[1] + '-' + String(m1[2]).padStart(2, '0');
-
-    var m2 = d.match(/^([0-9]{1,2})[-/.]([0-9]{1,2})[-/.]([0-9]{4})/);
-    if (m2) return m2[3] + '-' + String(m2[2]).padStart(2, '0');
-
-    return '';
   }
 
   /* ── FORMAT ──────────────────────────────────────────────────── */
 
   function fmtNum(n, dec) {
     dec = dec == null ? 1 : dec;
-
     return parseFloat(n || 0).toLocaleString('tr-TR', {
-      minimumFractionDigits: dec,
-      maximumFractionDigits: dec
+      minimumFractionDigits: dec, maximumFractionDigits: dec
     });
   }
 
@@ -513,523 +245,725 @@ SRD.DATA = (function () {
   /* ── PROCESS DATA ────────────────────────────────────────────── */
 
   function processData(incidents, flightRows, spiRows) {
-    incidents  = incidents || [];
+    incidents  = incidents  || [];
     flightRows = flightRows || [];
-    spiRows    = spiRows || [];
+    spiRows    = spiRows    || [];
 
-    /* ── FLIGHT MAP ───────────────────────────────────────────── */
-
+    /* Flight map */
     var flightMap = {};
-
     flightRows.forEach(function (r) {
       var loc = getFlightLoc(r);
       var cnt = getFlightCount(r);
-
-      if (!loc) return;
-
-      flightMap[loc] = (flightMap[loc] || 0) + cnt;
+      if (loc && cnt > 0) flightMap[loc] = (flightMap[loc] || 0) + cnt;
     });
 
-    /* ── SPI MAP ──────────────────────────────────────────────── */
-
+    /* SPI map — noktalı virgülle ayrılmış CSV destekleniyor */
     var spiMap = {};
-
     spiRows.forEach(function (r) {
-      /*
-        SPI CSV:
-        0: SPI
-        1: SPI Sayısı
-        2: Title
-        3: SPI_Class
-      */
-      var code = normalizeSpiCode(
-        pick(r, ['SPI', 'SPI_Code', 'SPI Code', 'Code', 'code']) ||
-        getByIndex(r, 0)
-      );
-
+      /* SPI;SPI Sayısı;Title;SPI_Class */
+      var code = s(pick(r, ['SPI','SPI_Code','Code','code']) || byIndex(r, 0));
       if (!code) return;
-
-      var title =
-        pick(r, ['title', 'Title', 'SPI_Title', 'SPI Title', 'Açıklama', 'Aciklama', 'Description']) ||
-        getByIndex(r, 2) ||
-        code;
-
-      var cls =
-        pick(r, ['SPI_Class', 'SPI Class', 'Class', 'class', 'Sınıf', 'Sinif']) ||
-        getByIndex(r, 3) ||
-        '';
-
-      spiMap[code] = {
-        title: title,
-        cls: cls
-      };
+      var title = pick(r, ['Title','title','Açıklama','Description']) || byIndex(r, 2) || code;
+      var cls   = pick(r, ['SPI_Class','SPI Class','Class','class']) || byIndex(r, 3) || '';
+      spiMap[code] = { title: title, cls: cls };
     });
 
-    /* ── NORMALIZE INCIDENTS ──────────────────────────────────── */
-
-    var fakeLocSamples = {};
+    /* Normalize incidents — validLocs filtresi YOK, tüm geçerli Loc değerleri kabul edilir */
     var rows = incidents.map(function (r) {
-      var rawLoc = pick(r, ['Loc', 'LOC', 'loc', 'Location']);
       var loc = getIncidentLoc(r);
 
-      if (!loc && rawLoc && Object.keys(fakeLocSamples).length < 30) {
-        fakeLocSamples[rawLoc] = true;
-      }
+      var riskScore = parseNumber(pick(r, ['RiskScore','Risk_Score','Risk Score','riskScore']));
+      var lscore    = parseNumber(pick(r, ['likelihoodScore','LikelihoodScore','Likelihood_Score']));
+      var sscore    = parseNumber(pick(r, ['severityScore','SeverityScore','Severity_Score']));
+      if (!riskScore && lscore && sscore) riskScore = lscore * sscore;
 
-      var riskScore = parseNumber(pick(r, [
-        'RiskScore',
-        'Risk_Score',
-        'Risk Score',
-        'riskScore',
-        'risk_score'
-      ]));
+      var riskLevel = parseRiskLevel(pick(r, ['Risk_Level','RiskLevel','Risk Level'])) ||
+                      getRiskCat(riskScore);
 
-      var likelihoodScore = parseNumber(pick(r, [
-        'likelihoodScore',
-        'LikelihoodScore',
-        'Likelihood_Score',
-        'Likelihood Score'
-      ]));
+      var nonSPIRaw = s(pick(r, ['NonSPI','Non_SPI'])).toLowerCase();
+      var isNonSPI  = ['true','1','yes','evet','nonspi'].indexOf(nonSPIRaw) >= 0;
 
-      var severityScore = parseNumber(pick(r, [
-        'severityScore',
-        'SeverityScore',
-        'Severity_Score',
-        'Severity Score'
-      ]));
-
-      if (!riskScore && likelihoodScore && severityScore) {
-        riskScore = likelihoodScore * severityScore;
-      }
-
-      var riskLevel =
-        parseRiskLevel(pick(r, ['Risk_Level', 'RiskLevel', 'Risk Level', 'riskLevel'])) ||
-        getRiskCategory(riskScore);
-
-      var nonSPI = normalizeText(pick(r, ['NonSPI', 'Non_SPI', 'Non SPI'])).toLowerCase();
-
-      var isNonSPI =
-        nonSPI === 'true' ||
-        nonSPI === '1' ||
-        nonSPI === 'yes' ||
-        nonSPI === 'evet' ||
-        nonSPI === 'nonspi';
-
-      var spiRaw1 = pick(r, ['SPI_1', 'SPI1', 'SPI 1']);
-      var spiRaw2 = pick(r, ['SPI_2', 'SPI2', 'SPI 2']);
-
+      var spi1 = s(pick(r, ['SPI_1','SPI1','SPI 1']));
+      var spi2 = s(pick(r, ['SPI_2','SPI2','SPI 2']));
       var spiTags = [];
-
-      /*
-        Do NOT use incident CSV's "SPI" column.
-        Real incident-SPI relation must come only from SPI_1 and SPI_2.
-        SPI names/classes are always taken from SPI CSV.
-      */
       if (!isNonSPI) {
-        extractSpiTags(spiRaw1, spiMap).forEach(function (code) {
-          if (spiTags.indexOf(code) < 0) {
-            spiTags.push(code);
-          }
-        });
-
-        extractSpiTags(spiRaw2, spiMap).forEach(function (code) {
-          if (spiTags.indexOf(code) < 0) {
-            spiTags.push(code);
-          }
-        });
+        if (spi1 && spiMap[spi1] && spiTags.indexOf(spi1) < 0) spiTags.push(spi1);
+        if (spi2 && spiMap[spi2] && spiTags.indexOf(spi2) < 0) spiTags.push(spi2);
       }
 
       return {
-        loc: loc,
-
-        occNo: getOccurrenceNo(r),
-        repNo: pick(r, ['Report_Number', 'Report Number']),
-        repType: pick(r, ['Report_Type', 'Report_type', 'Report Type']),
-        dept: pick(r, ['Department']),
-        status: pick(r, ['Status']),
-
-        descript: pick(r, ['Descript', 'Description', 'Description_of_damage']),
-        result: pick(r, ['Result']),
-
-        date: pick(r, ['MC_Date', 'MC_Date_2']),
-        year: normalizeYear(r),
+        loc:       loc,
+        occNo:     getOccNo(r),
+        repNo:     pick(r, ['Report_Number','Report Number']),
+        repType:   pick(r, ['Report_Type','Report_type','Report Type']),
+        dept:      pick(r, ['Department']),
+        status:    pick(r, ['Status']),
+        date:      pick(r, ['MC_Date']),
+        year:      normalizeYear(r),
         yearMonth: normalizeYearMonth(r),
-
-        originator: pick(r, ['Originator']),
-        owner: pick(r, ['OccurrenceOwner', 'Owner_1']),
-
-        locationRaw: pick(r, ['Location']),
-        rawLoc: rawLoc,
-        region: cleanRegion(pick(r, ['Bölge', 'Bolge', 'Region'])),
-        subRegion: pick(r, ['Alt Bölge', 'Alt_Bolge', 'Sub Region', 'SubRegion']),
-
-        flightNo: pick(r, ['Flight_Number', 'Flight Number']),
-        depPoint: pick(r, ['Departure_Point', 'Departure Point']),
-        destPoint: pick(r, ['Destination_Point', 'Destination Point']),
-
-        registration: pick(r, ['Registration_Mark', 'Registration Mark']),
-        model: pick(r, ['Model']),
-        fleet: pick(r, ['Fleet']),
-
-        likelihood: pick(r, ['likelihood', 'Likelihood']),
-        likelihoodScore: likelihoodScore,
-        severity: pick(r, ['severity', 'Severity']),
-        severityScore: severityScore,
-
-        riskLevel: riskLevel,
-        riskScore: riskScore,
-
-        nonSPI: isNonSPI,
-        spiTags: spiTags,
-
-        opPhase: pick(r, ['Operational_Phase', 'Operational Phase']),
-        effectOnFlight: pick(r, ['effect_on_flight', 'Effect_on_flight', 'Effect on flight'])
+        region:    cleanRegion(pick(r, ['Bölge','Bolge','Region'])),
+        subRegion: pick(r, ['Alt Bölge','Alt_Bolge','Sub Region']),
+        fleet:     pick(r, ['Fleet']),
+        model:     pick(r, ['Model']),
+        likelihood:      pick(r, ['likelihood','Likelihood']),
+        likelihoodScore: lscore,
+        severity:        pick(r, ['severity','Severity']),
+        severityScore:   sscore,
+        riskLevel:  riskLevel,
+        riskScore:  riskScore,
+        nonSPI:     isNonSPI,
+        spiTags:    spiTags,
+        opPhase:    pick(r, ['Operational_Phase','Operational Phase']),
       };
-    });
+    }).filter(function (r) { return !!r.loc; });
 
-    /*
-      IMPORTANT:
-      We do NOT filter out rows with empty loc.
-      They must remain in KPIs, year/month/region/SPI filters and trend analysis.
-      They are only skipped in station aggregation below.
-    */
-
-    /* ── STATION GROUPING ─────────────────────────────────────── */
-
+    /* Station grouping */
     var stMap = {};
-
     rows.forEach(function (r) {
-      /*
-        Fake/empty loc records stay in rows,
-        but do not enter station-based calculations.
-      */
-      if (!r.loc) return;
-
-      if (!stMap[r.loc]) {
-        stMap[r.loc] = {
-          loc: r.loc,
-          incidents: []
-        };
-      }
-
+      if (!stMap[r.loc]) stMap[r.loc] = { loc: r.loc, incidents: [] };
       stMap[r.loc].incidents.push(r);
     });
 
     var stations = Object.values(stMap).map(function (st) {
-      var incs = st.incidents;
-
-      var totalRisk = incs.reduce(function (sum, item) {
-        return sum + Number(item.riskScore || 0);
-      }, 0);
-
-      var flights = flightMap[st.loc] || 0;
-
+      var incs      = st.incidents;
+      var totalRisk = incs.reduce(function (s, i) { return s + Number(i.riskScore || 0); }, 0);
+      var flights   = flightMap[st.loc] || 0;
       var composite = flights > 0
-        ? (totalRisk / flights * 100)
+        ? totalRisk / flights * 100
         : (incs.length ? totalRisk / incs.length : 0);
-
-      var catCounts = {
-        A: 0,
-        B: 0,
-        C: 0,
-        D: 0,
-        E: 0
-      };
-
-      incs.forEach(function (i) {
-        if (catCounts[i.riskLevel] != null) {
-          catCounts[i.riskLevel]++;
-        }
-      });
-
+      var catCounts = { A:0, B:0, C:0, D:0, E:0 };
+      incs.forEach(function (i) { if (catCounts[i.riskLevel] != null) catCounts[i.riskLevel]++; });
       return {
-        loc: st.loc,
-        incidents: incs,
-        count: countUniqueOccurrences(incs),
-        rowCount: incs.length,
-        totalRisk: totalRisk,
-        flights: flights,
-        composite: composite,
-        compLevel: getRiskCategory(composite),
+        loc: st.loc, incidents: incs,
+        count: countUnique(incs), rowCount: incs.length,
+        totalRisk: totalRisk, flights: flights,
+        composite: composite, compLevel: getRiskCat(composite),
         catCounts: catCounts,
         highSev: (catCounts.A || 0) + (catCounts.B || 0)
       };
     });
 
-    stations.sort(function (a, b) {
-      return a.loc.localeCompare(b.loc);
-    });
+    stations.sort(function (a, b) { return a.loc.localeCompare(b.loc); });
 
-    console.log('[SRD DATA] raw incident rows:', incidents.length);
-    console.log('[SRD DATA] normalized rows including empty loc:', rows.length);
-    console.log('[SRD DATA] unique occurrences:', countUniqueOccurrences(rows));
-    console.log('[SRD DATA] station rows only:', stations.reduce(function (sum, s) { return sum + s.rowCount; }, 0));
-    console.log('[SRD DATA] stations:', stations.length);
-    console.log('[SRD DATA] fake/empty loc samples:', Object.keys(fakeLocSamples));
-    console.log('[SRD DATA] flightMap:', flightMap);
-    console.log('[SRD DATA] spiMap:', spiMap);
+    /* Debug */
+    console.log('[SRD] incidents raw:', incidents.length,
+                '| normalized:', rows.length,
+                '| unique occ:', countUnique(rows),
+                '| stations:', stations.length,
+                '| flight locs:', Object.keys(flightMap).length);
+    if (rows.length < incidents.length * 0.5) {
+      console.warn('[SRD] More than 50% of rows filtered! Check Loc column.');
+      /* Show sample rejected rows */
+      var rejected = incidents.filter(function(r){ return !getIncidentLoc(r); }).slice(0,5);
+      console.warn('[SRD] Sample rejected rows:', rejected.map(function(r){
+        return { Loc: r['Loc'], Location: r['Location'] };
+      }));
+    }
 
-    return {
-      rows: rows,
-      stations: stations,
-      flightMap: flightMap,
-      spiMap: spiMap
-    };
+    return { rows: rows, stations: stations, flightMap: flightMap, spiMap: spiMap };
   }
 
   /* ── KPIs ────────────────────────────────────────────────────── */
 
   function calcKPIs(rows, stations) {
-    rows = rows || [];
-    stations = stations || [];
-
-    /*
-      Total recorded events comes from unique Occurrence_No.
-      Empty/fake loc records are included.
-    */
-    var totalInc = countUniqueOccurrences(rows);
-
-    var totalFlight = stations.reduce(function (sum, st) {
-      return sum + Number(st.flights || 0);
-    }, 0);
-
-    var avgRisk = rows.length
-      ? rows.reduce(function (sum, r) {
-          return sum + Number(r.riskScore || 0);
-        }, 0) / rows.length
-      : 0;
-
-    var stCount = stations.length;
-
+    rows = rows || []; stations = stations || [];
     return {
-      totalInc: totalInc,
-      totalFlight: totalFlight,
-      avgRisk: avgRisk,
-      stCount: stCount
+      totalInc:    countUnique(rows),
+      totalFlight: stations.reduce(function (s, st) { return s + Number(st.flights || 0); }, 0),
+      avgRisk:     rows.length
+        ? rows.reduce(function (s, r) { return s + Number(r.riskScore || 0); }, 0) / rows.length
+        : 0,
+      stCount: stations.length
     };
   }
 
   /* ── FILTER ──────────────────────────────────────────────────── */
 
   function applyFilters(allRows, allStations, filters) {
-    allRows = allRows || [];
-    allStations = allStations || [];
-    filters = filters || {};
+    allRows = allRows || []; allStations = allStations || []; filters = filters || {};
 
     var rows = allRows.filter(function (r) {
-      if (filters.year    && r.year      !== filters.year)       return false;
-      if (filters.month   && r.yearMonth !== filters.month)      return false;
-      if (filters.station && r.loc       !== filters.station)    return false;
-      if (filters.dept    && r.dept      !== filters.dept)       return false;
-      if (filters.fleet   && r.fleet     !== filters.fleet)      return false;
-      if (filters.rtype   && r.repType   !== filters.rtype)      return false;
-      if (filters.region  && r.region    !== filters.region)     return false;
-      if (filters.sev     && r.riskLevel !== filters.sev)        return false;
-      if (filters.status  && r.status    !== filters.status)     return false;
-      if (filters.spi     && r.spiTags.indexOf(filters.spi) < 0) return false;
-
+      if (filters.year    && r.year      !== filters.year)            return false;
+      if (filters.month   && r.yearMonth !== filters.month)           return false;
+      if (filters.station && r.loc       !== filters.station)         return false;
+      if (filters.dept    && r.dept      !== filters.dept)            return false;
+      if (filters.fleet   && r.fleet     !== filters.fleet)           return false;
+      if (filters.rtype   && r.repType   !== filters.rtype)           return false;
+      if (filters.region  && r.region    !== filters.region)          return false;
+      if (filters.sev     && r.riskLevel !== filters.sev)             return false;
+      if (filters.status  && r.status    !== filters.status)          return false;
+      if (filters.spi     && r.spiTags.indexOf(filters.spi) < 0)     return false;
       return true;
     });
 
     var stMap = {};
-
     rows.forEach(function (r) {
-      /*
-        Empty/fake loc records remain in filtered rows,
-        but are skipped in station aggregation.
-      */
-      if (!r.loc) return;
-
-      if (!stMap[r.loc]) {
-        stMap[r.loc] = {
-          loc: r.loc,
-          incidents: []
-        };
-      }
-
+      if (!stMap[r.loc]) stMap[r.loc] = { loc: r.loc, incidents: [] };
       stMap[r.loc].incidents.push(r);
     });
 
     var stations = Object.values(stMap).map(function (st) {
-      var incs = st.incidents;
-
-      var totalRisk = incs.reduce(function (sum, item) {
-        return sum + Number(item.riskScore || 0);
-      }, 0);
-
-      var origSt = allStations.find(function (s) {
-        return s.loc === st.loc;
-      });
-
-      var flights = origSt ? Number(origSt.flights || 0) : 0;
-
+      var incs      = st.incidents;
+      var totalRisk = incs.reduce(function (s, i) { return s + Number(i.riskScore || 0); }, 0);
+      var origSt    = allStations.find(function (x) { return x.loc === st.loc; });
+      var flights   = origSt ? Number(origSt.flights || 0) : 0;
       var composite = flights > 0
         ? totalRisk / flights * 100
         : (incs.length ? totalRisk / incs.length : 0);
-
-      var catCounts = {
-        A: 0,
-        B: 0,
-        C: 0,
-        D: 0,
-        E: 0
-      };
-
-      incs.forEach(function (i) {
-        if (catCounts[i.riskLevel] != null) {
-          catCounts[i.riskLevel]++;
-        }
-      });
-
+      var catCounts = { A:0, B:0, C:0, D:0, E:0 };
+      incs.forEach(function (i) { if (catCounts[i.riskLevel] != null) catCounts[i.riskLevel]++; });
       return {
-        loc: st.loc,
-        incidents: incs,
-        count: countUniqueOccurrences(incs),
-        rowCount: incs.length,
-        totalRisk: totalRisk,
-        flights: flights,
-        composite: composite,
-        compLevel: getRiskCategory(composite),
+        loc: st.loc, incidents: incs,
+        count: countUnique(incs), rowCount: incs.length,
+        totalRisk: totalRisk, flights: flights,
+        composite: composite, compLevel: getRiskCat(composite),
         catCounts: catCounts,
         highSev: (catCounts.A || 0) + (catCounts.B || 0)
       };
     });
-
-    stations.sort(function (a, b) {
-      return a.loc.localeCompare(b.loc);
-    });
-
-    return {
-      rows: rows,
-      stations: stations
-    };
+    stations.sort(function (a, b) { return a.loc.localeCompare(b.loc); });
+    return { rows: rows, stations: stations };
   }
 
   /* ── DONUT DATASETS ──────────────────────────────────────────── */
 
   function buildDonutSets(rows, spiMap) {
-    rows = rows || [];
-    spiMap = spiMap || {};
+    rows = rows || []; spiMap = spiMap || {};
+    var PALETTE = ['#e05555','#d98a35','#c0a030','#38b272','#4294cc',
+                   '#8b5cf6','#06b6d4','#ec4899','#84cc16','#f97316'];
 
-    var PALETTE = [
-      '#e05555',
-      '#d98a35',
-      '#c0a030',
-      '#38b272',
-      '#4294cc',
-      '#8b5cf6',
-      '#06b6d4',
-      '#ec4899',
-      '#84cc16',
-      '#f97316'
-    ];
+    var sev = { A:0, B:0, C:0, D:0, E:0 };
+    rows.forEach(function (r) { if (sev[r.riskLevel] != null) sev[r.riskLevel]++; });
 
-    var sev = {
-      A: 0,
-      B: 0,
-      C: 0,
-      D: 0,
-      E: 0
-    };
-
-    rows.forEach(function (r) {
-      if (sev[r.riskLevel] != null) {
-        sev[r.riskLevel]++;
-      }
-    });
-
-    var spiClassMap = {};
-
+    var spiClassMap = {}, fleetMap = {};
     rows.forEach(function (r) {
       var tags = r.spiTags && r.spiTags.length ? r.spiTags : [];
-
       tags.forEach(function (tag) {
-        var info = spiMap[tag] || {};
-        var cls = info.cls || tag;
-
+        var cls = (spiMap[tag] && spiMap[tag].cls) ? spiMap[tag].cls : tag;
         spiClassMap[cls] = (spiClassMap[cls] || 0) + 1;
       });
-
-      if (r.nonSPI || !tags.length) {
-        spiClassMap.NonSPI = (spiClassMap.NonSPI || 0) + 1;
-      }
-    });
-
-    var fleetMap = {};
-
-    rows.forEach(function (r) {
-      if (r.fleet) {
-        fleetMap[r.fleet] = (fleetMap[r.fleet] || 0) + 1;
-      }
+      if (r.nonSPI || !tags.length) spiClassMap['NonSPI'] = (spiClassMap['NonSPI'] || 0) + 1;
+      if (r.fleet) fleetMap[r.fleet] = (fleetMap[r.fleet] || 0) + 1;
     });
 
     function toSet(map, colors) {
-      var keys = Object.keys(map).sort(function (a, b) {
-        return map[b] - map[a];
-      });
-
+      var keys = Object.keys(map).sort(function (a,b) { return map[b]-map[a]; });
       return {
         labels: keys,
-        data: keys.map(function (k) {
-          return map[k];
-        }),
-        colors: keys.map(function (_, i) {
-          return colors[i % colors.length];
-        })
+        data:   keys.map(function(k){ return map[k]; }),
+        colors: keys.map(function(_,i){ return colors[i % colors.length]; })
       };
     }
 
     return {
       sev: {
-        labels: [
-          'A — Critical',
-          'B — High',
-          'C — Medium',
-          'D — Low',
-          'E — Very Low'
-        ],
-        data: [sev.A, sev.B, sev.C, sev.D, sev.E],
-        colors: [
-          SEV_COLOR.A,
-          SEV_COLOR.B,
-          SEV_COLOR.C,
-          SEV_COLOR.D,
-          SEV_COLOR.E
-        ]
+        labels: ['A — Critical','B — High','C — Medium','D — Low','E — Very Low'],
+        data:   [sev.A, sev.B, sev.C, sev.D, sev.E],
+        colors: [SEV_COLOR.A, SEV_COLOR.B, SEV_COLOR.C, SEV_COLOR.D, SEV_COLOR.E]
       },
-
-      spi: toSet(spiClassMap, PALETTE),
-      fleet: toSet(fleetMap, PALETTE)
+      spi:   toSet(spiClassMap, PALETTE),
+      fleet: toSet(fleetMap,    PALETTE)
     };
   }
 
   /* ── UNIQUE ──────────────────────────────────────────────────── */
 
   function uniq(arr) {
-    var seen = {};
-    var out = [];
-
-    (arr || []).forEach(function (v) {
-      if (v && !seen[v]) {
-        seen[v] = 1;
-        out.push(v);
-      }
-    });
-
+    var seen = {}, out = [];
+    (arr || []).forEach(function (v) { if (v && !seen[v]) { seen[v]=1; out.push(v); } });
     return out;
   }
 
   return {
-    loadCSV: loadCSV,
-    processData: processData,
-    calcKPIs: calcKPIs,
-    applyFilters: applyFilters,
-    buildDonutSets: buildDonutSets,
-    uniq: uniq,
-    fmtNum: fmtNum,
-    fmtInt: fmtInt,
-    SEV_COLOR: SEV_COLOR,
-    SEV_BG: SEV_BG
+    loadCSV: loadCSV, parseCSV: parseCSV,
+    processData: processData, calcKPIs: calcKPIs,
+    applyFilters: applyFilters, buildDonutSets: buildDonutSets,
+    uniq: uniq, fmtNum: fmtNum, fmtInt: fmtInt,
+    SEV_COLOR: SEV_COLOR, SEV_BG: SEV_BG
+  };
+
+})();/* ================================================================
+   data.js — CSV parser, data processing, risk calculations
+   ================================================================ */
+
+var SRD = SRD || {};
+
+SRD.DATA = (function () {
+
+  /* ── CSV PARSER ──────────────────────────────────────────────── */
+
+  function detectDelimiter(firstLine) {
+    var commaCount = (firstLine.match(/,/g) || []).length;
+    var semiCount  = (firstLine.match(/;/g) || []).length;
+    return semiCount > commaCount ? ';' : ',';
+  }
+
+  function splitCSVRecords(text) {
+    var records = [], cur = '', inQ = false;
+    for (var i = 0; i < text.length; i++) {
+      var ch = text[i], next = text[i + 1];
+      if (ch === '"' && inQ && next === '"') { cur += '"'; i++; }
+      else if (ch === '"') { inQ = !inQ; }
+      else if ((ch === '\n' || ch === '\r') && !inQ) {
+        if (cur.trim()) records.push(cur);
+        cur = '';
+        if (ch === '\r' && next === '\n') i++;
+      } else { cur += ch; }
+    }
+    if (cur.trim()) records.push(cur);
+    return records;
+  }
+
+  function splitCSVLine(line, delim) {
+    var cols = [], cur = '', inQ = false;
+    for (var i = 0; i < line.length; i++) {
+      var ch = line[i], next = line[i + 1];
+      if (ch === '"' && inQ && next === '"') { cur += '"'; i++; }
+      else if (ch === '"') { inQ = !inQ; }
+      else if (ch === delim && !inQ) { cols.push(cur.trim()); cur = ''; }
+      else { cur += ch; }
+    }
+    cols.push(cur.trim());
+    return cols;
+  }
+
+  function makeUniqueHeaders(headers) {
+    var seen = {};
+    return headers.map(function (h) {
+      h = String(h || '').replace(/^\uFEFF/, '').trim() || 'EMPTY';
+      if (!seen[h]) { seen[h] = 1; return h; }
+      return h + '_' + (++seen[h]);
+    });
+  }
+
+  function parseCSV(text) {
+    if (!text) return [];
+    text = String(text).replace(/^\uFEFF/, '').trim();
+    if (!text) return [];
+    var records = splitCSVRecords(text);
+    if (records.length < 2) return [];
+    var delim = detectDelimiter(records[0]);
+    var headers = makeUniqueHeaders(splitCSVLine(records[0], delim));
+    return records.slice(1).map(function (rec) {
+      var cols = splitCSVLine(rec, delim);
+      var obj = {};
+      headers.forEach(function (h, i) { obj[h] = (cols[i] || '').trim(); });
+      return obj;
+    }).filter(function (r) {
+      return Object.values(r).some(function (v) { return String(v || '').trim() !== ''; });
+    });
+  }
+
+  function loadCSV(path) {
+    return fetch(path)
+      .then(function (r) {
+        if (!r.ok) throw new Error('Failed to load: ' + path);
+        return r.text();
+      })
+      .then(parseCSV);
+  }
+
+  /* ── HELPERS ─────────────────────────────────────────────────── */
+
+  function pick(row, names) {
+    for (var i = 0; i < names.length; i++) {
+      var v = String(row[names[i]] || '').trim();
+      if (v) return v;
+    }
+    return '';
+  }
+
+  function byIndex(row, idx) {
+    var k = Object.keys(row || {})[idx];
+    return k ? String(row[k] || '').trim() : '';
+  }
+
+  function s(v) { return String(v || '').trim(); }
+
+  function parseNumber(value) {
+    var str = String(value || '').trim().replace(/\s/g, '');
+    if (!str) return 0;
+    if (str.indexOf(',') >= 0 && str.indexOf('.') >= 0)
+      str = str.replace(/\./g, '').replace(',', '.');
+    else if (str.indexOf(',') >= 0)
+      str = str.replace(',', '.');
+    str = str.replace(/[^0-9.\-]/g, '');
+    return parseFloat(str) || 0;
+  }
+
+  /* ── STATION CODE VALIDATION ─────────────────────────────────── */
+
+  function cleanStation(value) {
+    var raw = s(value).toUpperCase();
+    if (!raw) return '';
+    if (/^[0-9]+$/.test(raw)) return '';
+    if (/BOLGE|BÖLGE|BLGE/i.test(raw)) return '';
+    if (/^[0-9]+[A-Z]+$/.test(raw) && raw.length <= 5 && /BLGE|BOLGE/.test(raw)) return '';
+    raw = raw.replace(/[^A-Z0-9]/g, '');
+    if (raw.length < 2 || raw.length > 5) return '';
+    if (!/[A-Z]/.test(raw)) return '';
+    return raw;
+  }
+
+  /* ── LOCATION FROM INCIDENT ROW ──────────────────────────────── */
+
+  function getIncidentLoc(row) {
+    /* Priority: Loc column first, then others */
+    var candidates = [
+      pick(row, ['Loc', 'LOC', 'loc']),
+      pick(row, ['Location']),
+      pick(row, ['IATA', 'IATA_Code', 'Station', 'Station_Code']),
+    ];
+    for (var i = 0; i < candidates.length; i++) {
+      var loc = cleanStation(candidates[i]);
+      if (loc) return loc;
+    }
+    return '';
+  }
+
+  /* ── FLIGHT LOC & COUNT ──────────────────────────────────────── */
+
+  function getFlightLoc(row) {
+    return cleanStation(
+      pick(row, ['Loc','LOC','loc','IATA','Station','Airport']) ||
+      byIndex(row, 0)
+    );
+  }
+
+  function getFlightCount(row) {
+    var v = pick(row, [
+      'Uçuş Sayısı','Ucus Sayisi','Ucus_sayisi','Uçuş_Sayısı',
+      'Flight Count','Flight_Count','flight_count','Flights','flights',
+      'Count','count','Sayı','Sayi','Adet'
+    ]) || byIndex(row, 1);
+    return parseNumber(v);
+  }
+
+  /* ── OCCURRENCE NO ───────────────────────────────────────────── */
+
+  function getOccNo(row) {
+    return s(pick(row, [
+      'Occurrence_No','Occurence_No','Occurrence No','Occurence No',
+      'OccurrenceNo','OccurenceNo','OCCURRENCE_NO'
+    ]));
+  }
+
+  function countUnique(rows) {
+    var seen = {}, count = 0;
+    (rows || []).forEach(function (r, i) {
+      var key = s(r.occNo) || ('ROW_' + i);
+      if (!seen[key]) { seen[key] = 1; count++; }
+    });
+    return count;
+  }
+
+  /* ── REGION ──────────────────────────────────────────────────── */
+
+  function cleanRegion(value) {
+    var raw = s(value).replace(/\s+/g, ' ');
+    if (!raw || raw === '-') return '';
+    var m = raw.match(/^([0-9]+)\s*\.?\s*(Bölge|Bolge|bolge|bölge)$/i);
+    return m ? m[1] + '.Bölge' : '';
+  }
+
+  /* ── DATE HELPERS ────────────────────────────────────────────── */
+
+  function normalizeYear(row) {
+    var y = pick(row, ['MC_Year','Year','year']);
+    if (/^[0-9]{4}$/.test(y)) return y;
+    var ym = pick(row, ['MC_Year_Month','Year_Month']);
+    var m = ym.match(/^([0-9]{4})/);
+    if (m) return m[1];
+    var d = pick(row, ['MC_Date','Date','date']);
+    var m2 = d.match(/([0-9]{4})/);
+    return m2 ? m2[1] : '';
+  }
+
+  function normalizeYearMonth(row) {
+    var ym = pick(row, ['MC_Year_Month','Year_Month']);
+    if (ym) return ym;
+    var d = pick(row, ['MC_Date','Date','date']);
+    var m1 = d.match(/^([0-9]{4})[-/.]([0-9]{1,2})/);
+    if (m1) return m1[1] + '-' + m1[2].padStart(2, '0');
+    var m2 = d.match(/^([0-9]{1,2})[-/.]([0-9]{1,2})[-/.]([0-9]{4})/);
+    if (m2) return m2[3] + '-' + m2[2].padStart(2, '0');
+    return '';
+  }
+
+  /* ── RISK ────────────────────────────────────────────────────── */
+
+  var SEV_COLOR = { A:'#e05555', B:'#d98a35', C:'#c0a030', D:'#38b272', E:'#4294cc' };
+  var SEV_BG    = {
+    A:'rgba(224,85,85,.13)', B:'rgba(217,138,53,.13)',
+    C:'rgba(192,160,48,.13)', D:'rgba(56,178,114,.13)', E:'rgba(66,148,204,.13)'
+  };
+
+  function getRiskCat(score) {
+    score = Number(score || 0);
+    if (score >= 80) return 'A';
+    if (score >= 45) return 'B';
+    if (score >= 22) return 'C';
+    if (score >= 10) return 'D';
+    return 'E';
+  }
+
+  function parseRiskLevel(raw) {
+    var r = s(raw).toUpperCase();
+    var first = r.charAt(0);
+    return 'ABCDE'.indexOf(first) >= 0 ? first : null;
+  }
+
+  /* ── FORMAT ──────────────────────────────────────────────────── */
+
+  function fmtNum(n, dec) {
+    dec = dec == null ? 1 : dec;
+    return parseFloat(n || 0).toLocaleString('tr-TR', {
+      minimumFractionDigits: dec, maximumFractionDigits: dec
+    });
+  }
+
+  function fmtInt(n) {
+    return parseInt(n || 0, 10).toLocaleString('tr-TR');
+  }
+
+  /* ── PROCESS DATA ────────────────────────────────────────────── */
+
+  function processData(incidents, flightRows, spiRows) {
+    incidents  = incidents  || [];
+    flightRows = flightRows || [];
+    spiRows    = spiRows    || [];
+
+    /* Flight map */
+    var flightMap = {};
+    flightRows.forEach(function (r) {
+      var loc = getFlightLoc(r);
+      var cnt = getFlightCount(r);
+      if (loc && cnt > 0) flightMap[loc] = (flightMap[loc] || 0) + cnt;
+    });
+
+    /* SPI map — noktalı virgülle ayrılmış CSV destekleniyor */
+    var spiMap = {};
+    spiRows.forEach(function (r) {
+      /* SPI;SPI Sayısı;Title;SPI_Class */
+      var code = s(pick(r, ['SPI','SPI_Code','Code','code']) || byIndex(r, 0));
+      if (!code) return;
+      var title = pick(r, ['Title','title','Açıklama','Description']) || byIndex(r, 2) || code;
+      var cls   = pick(r, ['SPI_Class','SPI Class','Class','class']) || byIndex(r, 3) || '';
+      spiMap[code] = { title: title, cls: cls };
+    });
+
+    /* Normalize incidents — validLocs filtresi YOK, tüm geçerli Loc değerleri kabul edilir */
+    var rows = incidents.map(function (r) {
+      var loc = getIncidentLoc(r);
+
+      var riskScore = parseNumber(pick(r, ['RiskScore','Risk_Score','Risk Score','riskScore']));
+      var lscore    = parseNumber(pick(r, ['likelihoodScore','LikelihoodScore','Likelihood_Score']));
+      var sscore    = parseNumber(pick(r, ['severityScore','SeverityScore','Severity_Score']));
+      if (!riskScore && lscore && sscore) riskScore = lscore * sscore;
+
+      var riskLevel = parseRiskLevel(pick(r, ['Risk_Level','RiskLevel','Risk Level'])) ||
+                      getRiskCat(riskScore);
+
+      var nonSPIRaw = s(pick(r, ['NonSPI','Non_SPI'])).toLowerCase();
+      var isNonSPI  = ['true','1','yes','evet','nonspi'].indexOf(nonSPIRaw) >= 0;
+
+      var spi1 = s(pick(r, ['SPI_1','SPI1','SPI 1']));
+      var spi2 = s(pick(r, ['SPI_2','SPI2','SPI 2']));
+      var spiTags = [];
+      if (!isNonSPI) {
+        if (spi1 && spiMap[spi1] && spiTags.indexOf(spi1) < 0) spiTags.push(spi1);
+        if (spi2 && spiMap[spi2] && spiTags.indexOf(spi2) < 0) spiTags.push(spi2);
+      }
+
+      return {
+        loc:       loc,
+        occNo:     getOccNo(r),
+        repNo:     pick(r, ['Report_Number','Report Number']),
+        repType:   pick(r, ['Report_Type','Report_type','Report Type']),
+        dept:      pick(r, ['Department']),
+        status:    pick(r, ['Status']),
+        date:      pick(r, ['MC_Date']),
+        year:      normalizeYear(r),
+        yearMonth: normalizeYearMonth(r),
+        region:    cleanRegion(pick(r, ['Bölge','Bolge','Region'])),
+        subRegion: pick(r, ['Alt Bölge','Alt_Bolge','Sub Region']),
+        fleet:     pick(r, ['Fleet']),
+        model:     pick(r, ['Model']),
+        likelihood:      pick(r, ['likelihood','Likelihood']),
+        likelihoodScore: lscore,
+        severity:        pick(r, ['severity','Severity']),
+        severityScore:   sscore,
+        riskLevel:  riskLevel,
+        riskScore:  riskScore,
+        nonSPI:     isNonSPI,
+        spiTags:    spiTags,
+        opPhase:    pick(r, ['Operational_Phase','Operational Phase']),
+      };
+    }).filter(function (r) { return !!r.loc; });
+
+    /* Station grouping */
+    var stMap = {};
+    rows.forEach(function (r) {
+      if (!stMap[r.loc]) stMap[r.loc] = { loc: r.loc, incidents: [] };
+      stMap[r.loc].incidents.push(r);
+    });
+
+    var stations = Object.values(stMap).map(function (st) {
+      var incs      = st.incidents;
+      var totalRisk = incs.reduce(function (s, i) { return s + Number(i.riskScore || 0); }, 0);
+      var flights   = flightMap[st.loc] || 0;
+      var composite = flights > 0
+        ? totalRisk / flights * 100
+        : (incs.length ? totalRisk / incs.length : 0);
+      var catCounts = { A:0, B:0, C:0, D:0, E:0 };
+      incs.forEach(function (i) { if (catCounts[i.riskLevel] != null) catCounts[i.riskLevel]++; });
+      return {
+        loc: st.loc, incidents: incs,
+        count: countUnique(incs), rowCount: incs.length,
+        totalRisk: totalRisk, flights: flights,
+        composite: composite, compLevel: getRiskCat(composite),
+        catCounts: catCounts,
+        highSev: (catCounts.A || 0) + (catCounts.B || 0)
+      };
+    });
+
+    stations.sort(function (a, b) { return a.loc.localeCompare(b.loc); });
+
+    /* Debug */
+    console.log('[SRD] incidents raw:', incidents.length,
+                '| normalized:', rows.length,
+                '| unique occ:', countUnique(rows),
+                '| stations:', stations.length,
+                '| flight locs:', Object.keys(flightMap).length);
+    if (rows.length < incidents.length * 0.5) {
+      console.warn('[SRD] More than 50% of rows filtered! Check Loc column.');
+      /* Show sample rejected rows */
+      var rejected = incidents.filter(function(r){ return !getIncidentLoc(r); }).slice(0,5);
+      console.warn('[SRD] Sample rejected rows:', rejected.map(function(r){
+        return { Loc: r['Loc'], Location: r['Location'] };
+      }));
+    }
+
+    return { rows: rows, stations: stations, flightMap: flightMap, spiMap: spiMap };
+  }
+
+  /* ── KPIs ────────────────────────────────────────────────────── */
+
+  function calcKPIs(rows, stations) {
+    rows = rows || []; stations = stations || [];
+    return {
+      totalInc:    countUnique(rows),
+      totalFlight: stations.reduce(function (s, st) { return s + Number(st.flights || 0); }, 0),
+      avgRisk:     rows.length
+        ? rows.reduce(function (s, r) { return s + Number(r.riskScore || 0); }, 0) / rows.length
+        : 0,
+      stCount: stations.length
+    };
+  }
+
+  /* ── FILTER ──────────────────────────────────────────────────── */
+
+  function applyFilters(allRows, allStations, filters) {
+    allRows = allRows || []; allStations = allStations || []; filters = filters || {};
+
+    var rows = allRows.filter(function (r) {
+      if (filters.year    && r.year      !== filters.year)            return false;
+      if (filters.month   && r.yearMonth !== filters.month)           return false;
+      if (filters.station && r.loc       !== filters.station)         return false;
+      if (filters.dept    && r.dept      !== filters.dept)            return false;
+      if (filters.fleet   && r.fleet     !== filters.fleet)           return false;
+      if (filters.rtype   && r.repType   !== filters.rtype)           return false;
+      if (filters.region  && r.region    !== filters.region)          return false;
+      if (filters.sev     && r.riskLevel !== filters.sev)             return false;
+      if (filters.status  && r.status    !== filters.status)          return false;
+      if (filters.spi     && r.spiTags.indexOf(filters.spi) < 0)     return false;
+      return true;
+    });
+
+    var stMap = {};
+    rows.forEach(function (r) {
+      if (!stMap[r.loc]) stMap[r.loc] = { loc: r.loc, incidents: [] };
+      stMap[r.loc].incidents.push(r);
+    });
+
+    var stations = Object.values(stMap).map(function (st) {
+      var incs      = st.incidents;
+      var totalRisk = incs.reduce(function (s, i) { return s + Number(i.riskScore || 0); }, 0);
+      var origSt    = allStations.find(function (x) { return x.loc === st.loc; });
+      var flights   = origSt ? Number(origSt.flights || 0) : 0;
+      var composite = flights > 0
+        ? totalRisk / flights * 100
+        : (incs.length ? totalRisk / incs.length : 0);
+      var catCounts = { A:0, B:0, C:0, D:0, E:0 };
+      incs.forEach(function (i) { if (catCounts[i.riskLevel] != null) catCounts[i.riskLevel]++; });
+      return {
+        loc: st.loc, incidents: incs,
+        count: countUnique(incs), rowCount: incs.length,
+        totalRisk: totalRisk, flights: flights,
+        composite: composite, compLevel: getRiskCat(composite),
+        catCounts: catCounts,
+        highSev: (catCounts.A || 0) + (catCounts.B || 0)
+      };
+    });
+    stations.sort(function (a, b) { return a.loc.localeCompare(b.loc); });
+    return { rows: rows, stations: stations };
+  }
+
+  /* ── DONUT DATASETS ──────────────────────────────────────────── */
+
+  function buildDonutSets(rows, spiMap) {
+    rows = rows || []; spiMap = spiMap || {};
+    var PALETTE = ['#e05555','#d98a35','#c0a030','#38b272','#4294cc',
+                   '#8b5cf6','#06b6d4','#ec4899','#84cc16','#f97316'];
+
+    var sev = { A:0, B:0, C:0, D:0, E:0 };
+    rows.forEach(function (r) { if (sev[r.riskLevel] != null) sev[r.riskLevel]++; });
+
+    var spiClassMap = {}, fleetMap = {};
+    rows.forEach(function (r) {
+      var tags = r.spiTags && r.spiTags.length ? r.spiTags : [];
+      tags.forEach(function (tag) {
+        var cls = (spiMap[tag] && spiMap[tag].cls) ? spiMap[tag].cls : tag;
+        spiClassMap[cls] = (spiClassMap[cls] || 0) + 1;
+      });
+      if (r.nonSPI || !tags.length) spiClassMap['NonSPI'] = (spiClassMap['NonSPI'] || 0) + 1;
+      if (r.fleet) fleetMap[r.fleet] = (fleetMap[r.fleet] || 0) + 1;
+    });
+
+    function toSet(map, colors) {
+      var keys = Object.keys(map).sort(function (a,b) { return map[b]-map[a]; });
+      return {
+        labels: keys,
+        data:   keys.map(function(k){ return map[k]; }),
+        colors: keys.map(function(_,i){ return colors[i % colors.length]; })
+      };
+    }
+
+    return {
+      sev: {
+        labels: ['A — Critical','B — High','C — Medium','D — Low','E — Very Low'],
+        data:   [sev.A, sev.B, sev.C, sev.D, sev.E],
+        colors: [SEV_COLOR.A, SEV_COLOR.B, SEV_COLOR.C, SEV_COLOR.D, SEV_COLOR.E]
+      },
+      spi:   toSet(spiClassMap, PALETTE),
+      fleet: toSet(fleetMap,    PALETTE)
+    };
+  }
+
+  /* ── UNIQUE ──────────────────────────────────────────────────── */
+
+  function uniq(arr) {
+    var seen = {}, out = [];
+    (arr || []).forEach(function (v) { if (v && !seen[v]) { seen[v]=1; out.push(v); } });
+    return out;
+  }
+
+  return {
+    loadCSV: loadCSV, parseCSV: parseCSV,
+    processData: processData, calcKPIs: calcKPIs,
+    applyFilters: applyFilters, buildDonutSets: buildDonutSets,
+    uniq: uniq, fmtNum: fmtNum, fmtInt: fmtInt,
+    SEV_COLOR: SEV_COLOR, SEV_BG: SEV_BG
   };
 
 })();
