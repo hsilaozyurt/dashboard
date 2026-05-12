@@ -8,8 +8,9 @@
    - Theme button works
    - Language button updates header/sidebar + page texts
    - Exposes SRD.I18N.t() for page files
-   - Includes Overview + Dashboard + Stations translations
-   - Adds SharePoint header navigation buttons
+   - Includes Overview + Dashboard + Stations + Team translations
+   - Header "Ekibimiz / Our Team" opens internal Team page
+   - Header "Müdürlük" and "Şeflik" open SharePoint links
    - Loads data from Excel files using SRD.DATA.loadExcel()
    ================================================================ */
 
@@ -27,12 +28,11 @@
   /*
     BURAYI KENDİ SHAREPOINT SAYFA LİNKLERİNLE DEĞİŞTİR.
 
-    Örnek:
-    mudurluk: 'https://thy.sharepoint.com/sites/...../SitePages/Mudurluk.aspx'
+    Ekibimiz artık iç sayfaya yönlendiriliyor.
+    Bu yüzden burada ekibimiz linki kullanılmıyor.
   */
   var SHAREPOINT_LINKS = {
     mudurluk: 'https://BURAYA-MUDURLUK-SAYFASI-LINKI',
-    ekibimiz: 'https://BURAYA-EKIBIMIZ-SAYFASI-LINKI',
     seflik: 'https://BURAYA-SEFLIK-SAYFASI-LINKI'
   };
 
@@ -45,6 +45,7 @@
       dashboard: 'Dashboard',
       stations: 'All Stations',
       stationDetail: 'Station Detail',
+      team: 'Our Team',
       tahminleme: 'Prediction',
       soon: 'Soon',
 
@@ -55,7 +56,7 @@
       contact: 'Contact',
       lastUpdated: 'Last updated',
 
-      /* Header SharePoint buttons */
+      /* Header buttons */
       mudurluk: 'Department',
       ekibimiz: 'Our Team',
       seflik: 'Unit',
@@ -79,6 +80,7 @@
 
       /* Dashboard filters */
       filter: 'Filter',
+      clearFilters: 'Clear Filters',
       allYears: 'All Years',
       allMonths: 'All Months',
       allStations: 'All Stations',
@@ -130,16 +132,23 @@
       stationsPageSub: 'Review station-level risk scores, flight exposure, event count and severity distribution.',
       stationCount: 'stations',
       searchIata: 'Search IATA...',
-      clearFilters: 'Clear Filters',
       noStationsFound: 'No stations found',
       noStationsFoundSub: 'Try clearing filters or check whether Excel data is loaded correctly.',
       all: 'All',
       flights: 'Flights',
       highSeverity: 'A+B High Sev',
       distribution: 'Distribution',
-      clearFilters: 'Clear Filters',
-backToStations: 'Back to All Stations',
-noStationsFound: 'No stations found'
+
+      /* Station detail */
+      backToStations: 'Back to All Stations',
+
+      /* Team page */
+      ourTeamTitle: 'Our Team',
+      ourTeamSub: 'Meet the team responsible for Ground Operations Safety Risk Management processes.',
+      teamIntroTitle: 'Ground Operations Safety Team',
+      teamIntroText: 'This page presents the team members involved in safety risk monitoring, data analysis, reporting, and operational follow-up processes.',
+      responsibility: 'Responsibility',
+      contactInfo: 'Contact'
     },
 
     tr: {
@@ -148,6 +157,7 @@ noStationsFound: 'No stations found'
       dashboard: 'Panel',
       stations: 'Tüm İstasyonlar',
       stationDetail: 'İstasyon Detayı',
+      team: 'Ekibimiz',
       tahminleme: 'Tahminleme',
       soon: 'Yakında',
 
@@ -158,7 +168,7 @@ noStationsFound: 'No stations found'
       contact: 'İletişim',
       lastUpdated: 'Son güncelleme',
 
-      /* Header SharePoint buttons */
+      /* Header buttons */
       mudurluk: 'Müdürlük',
       ekibimiz: 'Ekibimiz',
       seflik: 'Şeflik',
@@ -182,6 +192,7 @@ noStationsFound: 'No stations found'
 
       /* Dashboard filters */
       filter: 'Filtre',
+      clearFilters: 'Filtreleri Temizle',
       allYears: 'Tüm Yıllar',
       allMonths: 'Tüm Aylar',
       allStations: 'Tüm İstasyonlar',
@@ -233,17 +244,23 @@ noStationsFound: 'No stations found'
       stationsPageSub: 'İstasyon bazlı risk skorlarını, uçuş maruziyetini, olay sayısını ve şiddet dağılımını inceleyin.',
       stationCount: 'istasyon',
       searchIata: 'IATA ara...',
-      clearFilters: 'Filtreleri Temizle',
       noStationsFound: 'İstasyon bulunamadı',
       noStationsFoundSub: 'Filtreleri temizlemeyi deneyin veya Excel verilerinin doğru yüklendiğini kontrol edin.',
       all: 'Tümü',
       flights: 'Uçuşlar',
       highSeverity: 'A+B Yüksek Şiddet',
       distribution: 'Dağılım',
-      clearFilters: 'Filtreleri Temizle',
-backToStations: 'Tüm İstasyonlara Geri Dön',
-noStationsFound: 'İstasyon bulunamadı'
-      
+
+      /* Station detail */
+      backToStations: 'Tüm İstasyonlara Geri Dön',
+
+      /* Team page */
+      ourTeamTitle: 'Ekibimiz',
+      ourTeamSub: 'Yer Operasyonları Emniyet Risk Yönetimi süreçlerinden sorumlu ekibi tanıyın.',
+      teamIntroTitle: 'Yer Operasyonları Emniyet Ekibi',
+      teamIntroText: 'Bu sayfada emniyet risk takibi, veri analizi, raporlama ve operasyonel takip süreçlerinde görev alan ekip üyeleri yer almaktadır.',
+      responsibility: 'Sorumluluk',
+      contactInfo: 'İletişim'
     }
   };
 
@@ -261,7 +278,7 @@ noStationsFound: 'İstasyon bulunamadı'
 
   /*
     GLOBAL I18N ACCESS:
-    Page files such as overview.js, dashboard.js, stations.js can use:
+    Page files such as overview.js, dashboard.js, stations.js, team.js can use:
     SRD.I18N.t('overviewHeroTitle')
   */
   SRD.I18N = {
@@ -301,6 +318,7 @@ noStationsFound: 'İstasyon bulunamadı'
       'page-dashboard',
       'page-stations',
       'page-station-detail',
+      'page-team',
       'page-tahminleme'
     ];
 
@@ -389,6 +407,7 @@ noStationsFound: 'İstasyon bulunamadı'
       dashboard: t('dashboard'),
       stations: t('stations'),
       'station-detail': t('stationDetail'),
+      team: t('team'),
       tahminleme: t('tahminleme')
     };
 
@@ -406,6 +425,9 @@ noStationsFound: 'İstasyon bulunamadı'
         badge.style.display = 'inline-block';
       } else if (page === 'station-detail' && param) {
         badge.textContent = param;
+        badge.style.display = 'inline-block';
+      } else if (page === 'team') {
+        badge.textContent = t('groundOperations');
         badge.style.display = 'inline-block';
       } else {
         badge.textContent = '';
@@ -533,6 +555,15 @@ noStationsFound: 'İstasyon bulunamadı'
       SRD.STATIONS.render(target, _data);
     } else if (page === 'station-detail') {
       SRD.STATION_DETAIL.render(target, _data, param);
+    } else if (page === 'team') {
+      if (SRD.TEAM && typeof SRD.TEAM.render === 'function') {
+        SRD.TEAM.render(target);
+      } else {
+        target.innerHTML =
+          '<div style="padding:60px;text-align:center;color:#e05555">' +
+            'Team page file is not loaded. Please add <code>js/team.js</code> before <code>js/main.js</code>.' +
+          '</div>';
+      }
     } else if (page === 'tahminleme') {
       SRD.TAHMINLEME.render(target);
     }
@@ -561,7 +592,10 @@ noStationsFound: 'İstasyon bulunamadı'
         return;
       }
 
-      var needsData = page !== 'overview' && page !== 'tahminleme';
+      var needsData =
+        page !== 'overview' &&
+        page !== 'team' &&
+        page !== 'tahminleme';
 
       if (!_data && needsData) {
         clearPageContent(target);
@@ -643,10 +677,19 @@ noStationsFound: 'İstasyon bulunamadı'
       };
     }
 
-    /* SharePoint header buttons */
+    /* Header buttons */
     document.querySelectorAll('[data-sp-link]').forEach(function (btn) {
       btn.addEventListener('click', function () {
         var key = this.getAttribute('data-sp-link');
+
+        /*
+          Ekibimiz butonu artık proje içindeki Team sayfasına gider.
+        */
+        if (key === 'ekibimiz') {
+          SRD.ROUTER.go('team');
+          return;
+        }
+
         var url = SHAREPOINT_LINKS[key];
 
         if (!url || url.indexOf('BURAYA-') >= 0) {

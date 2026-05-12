@@ -1,0 +1,236 @@
+/* team.css */
+
+.team-page {
+  display: flex;
+  flex-direction: column;
+  padding: 20px 24px 28px;
+  gap: 18px;
+}
+
+.team-hero {
+  background: linear-gradient(135deg, rgba(59, 130, 246, .16), rgba(15, 23, 42, .96));
+  border: 1px solid var(--border);
+  border-radius: var(--r-l);
+  box-shadow: var(--sh);
+  padding: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.team-eyebrow {
+  color: var(--accent2);
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .12em;
+  margin-bottom: 8px;
+}
+
+.team-hero h1 {
+  margin: 0;
+  color: var(--text);
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: -.03em;
+}
+
+.team-hero p {
+  margin: 8px 0 0;
+  color: var(--text3);
+  font-size: 13px;
+  line-height: 1.6;
+  max-width: 760px;
+}
+
+.team-hero-icon {
+  width: 64px;
+  height: 64px;
+  border-radius: 18px;
+  background: rgba(59, 130, 246, .16);
+  border: 1px solid rgba(96, 165, 250, .28);
+  color: var(--accent2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.team-intro-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-l);
+  box-shadow: var(--sh);
+  padding: 18px 20px;
+}
+
+.team-intro-card h2 {
+  margin: 0 0 8px;
+  color: var(--text);
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.team-intro-card p {
+  margin: 0;
+  color: var(--text3);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.team-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+}
+
+.team-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-l);
+  box-shadow: var(--sh);
+  overflow: hidden;
+  transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease;
+}
+
+.team-card:hover {
+  transform: translateY(-3px);
+  border-color: rgba(96, 165, 250, .35);
+  box-shadow: 0 14px 30px rgba(0, 0, 0, .18);
+}
+
+.team-photo-wrap {
+  height: 190px;
+  background: var(--surface2);
+  position: relative;
+  overflow: hidden;
+}
+
+.team-photo {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.team-photo-placeholder {
+  display: none;
+  width: 100%;
+  height: 100%;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, rgba(59, 130, 246, .25), rgba(139, 92, 246, .18));
+}
+
+.team-photo-wrap.no-photo .team-photo-placeholder {
+  display: flex;
+}
+
+.team-photo-placeholder span {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, .08);
+  border: 1px solid rgba(255, 255, 255, .18);
+  color: var(--text);
+  font-size: 30px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.team-info {
+  padding: 16px;
+}
+
+.team-info h3 {
+  margin: 0;
+  color: var(--text);
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.team-title {
+  margin-top: 5px;
+  color: var(--accent2);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.team-department {
+  margin-top: 4px;
+  color: var(--text3);
+  font-size: 12px;
+}
+
+.team-section {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.team-section-label {
+  color: var(--text2);
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  margin-bottom: 6px;
+}
+
+.team-section p {
+  margin: 0;
+  color: var(--text3);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.team-contact {
+  margin-top: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+}
+
+.team-contact span {
+  color: var(--text2);
+  font-weight: 700;
+}
+
+.team-contact a {
+  color: var(--accent2);
+  text-decoration: none;
+  word-break: break-word;
+}
+
+.team-contact a:hover {
+  text-decoration: underline;
+}
+
+@media (max-width: 1200px) {
+  .team-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 720px) {
+  .team-page {
+    padding: 16px;
+  }
+
+  .team-hero {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .team-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .team-photo-wrap {
+    height: 220px;
+  }
+}
